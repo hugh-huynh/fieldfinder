@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Australia/Melbourne
+    open-pull-requests-limit: 5
+    # Let new releases settle before proposing them; security updates are not delayed.
+    cooldown:
+      default-days: 14
+    groups:
+      next-react:
+        patterns: ["next", "eslint-config-next", "react", "react-dom", "@types/react", "@types/react-dom"]
+      lint-format:
+        patterns: ["eslint", "@eslint/*", "typescript-eslint", "eslint-plugin-*", "prettier", "prettier-plugin-*"]
+      test-tooling:
+        patterns: ["vitest", "@vitest/*", "@testing-library/*", "jsdom", "msw", "@playwright/test", "@axe-core/*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Australia/Melbourne
+    cooldown:
+      default-days: 14
