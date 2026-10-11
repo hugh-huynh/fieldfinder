@@ -1,0 +1,9 @@
+# All changes require review by the repository owner.
+* @hughhuynh8
+
+# Security-sensitive paths (explicit for visibility).
+/.github/ @hughhuynh8
+/.claude/ @hughhuynh8
+/supabase/migrations/ @hughhuynh8
+/src/lib/auth/ @hughhuynh8
+/src/lib/db/ @hughhuynh8
