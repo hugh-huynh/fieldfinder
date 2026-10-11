@@ -1,0 +1,28 @@
+/*
+ * FieldFinder design tokens — the single source of truth for colour, radius and type.
+ * Spec §3 palette; derived tokens (border-strong, focus, danger, user-location) approved under D17.
+ * Contrast pairs are enforced by src/styles/tokens.test.ts.
+ */
+@theme {
+  /* Spec palette */
+  --color-primary: #087f45;
+  --color-primary-dark: #075b35;
+  --color-ink: #172b20;
+  --color-muted: #66756c;
+  --color-surface: #ffffff;
+  --color-subtle: #f3f8f4;
+  --color-border: #dce5df;
+
+  /* Derived (D17) */
+  --color-border-strong: #7c8a82; /* form-control outlines: >= 3:1 against surface/subtle (WCAG 1.4.11) */
+  --color-focus: #075b35;
+  --color-danger: #b42318;
+  --color-user-location: #1a73e8;
+
+  /* Shape — 4px spacing grid is Tailwind's default --spacing: 0.25rem */
+  --radius-card: 16px;
+  --radius-pill: 9999px;
+
+  /* Type */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
