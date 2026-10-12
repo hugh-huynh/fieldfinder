@@ -12,12 +12,22 @@
     outline-offset: 2px;
   }
 
+  /*
+   * Global reduced-motion safety net. `!important` is required: these rules live in the base
+   * layer, which loses to Tailwind's utilities layer (e.g. `animate-pulse`, `duration-300`) and
+   * to inline styles set by JS (map, bottom sheet). Important declarations in an earlier layer
+   * win over everything non-important, so this reliably overrides them.
+   * 0.01ms (not 0) keeps animationend/transitionend events firing for JS that waits on them;
+   * iteration-count 1 stops infinite animations restarting every frame.
+   */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
   }
 }
