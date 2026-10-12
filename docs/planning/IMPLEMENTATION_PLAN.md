@@ -1,6 +1,8 @@
 # fieldfinder — Pre-implementation Review & Plan (M0)
 
-Status: **PROPOSAL — awaiting explicit M1 go-ahead. No application code has been written.**
+Status: **APPROVED — M1 in progress (go-ahead given 2026-10-11).**
+
+Inputs reviewed: `docs/specifications/FIELDFINDER_SPEC.md` v1.0, `docs/design/README.md`, mockups 01–05 and the Airbnb mobile reference. Prepared: 2026-10-11.
 
 ### Decisions log (2026-10-11, human-approved)
 
@@ -8,11 +10,11 @@ Status: **PROPOSAL — awaiting explicit M1 go-ahead. No application code has be
 - **C9 (overrides spec §3 default):** the default search radius is **10 km**. The adjustable range stays 1–50 km (provisional).
 - **C11:** the Filters button sits directly next to the location search control on every page, not as a separate header item. On detail pages, pressing Enter in the search input goes to the search results page, and so does applying filters with "Show venues".
 - **D1–D23:** approved as recommended.
-- **D21:** GitHub **Enterprise Cloud** (github.com), private repo `https://github.com/hughhuynh8/fieldfinder`. Rulesets and environment required reviewers are available, so the Vercel-promotion fallback in §4 isn't needed.
+- **D21 (updated 2026-10-12):** GitHub **Enterprise Cloud**. The repo moved from the personal account into the enterprise organisation: private repo `https://github.com/hugh-huynh/fieldfinder`. Rulesets and environment required reviewers are available, so the Vercel-promotion fallback in §4 isn't needed.
+- **D23 (confirmed 2026-10-12):** Vercel **Pro**, connected to the organisation repo. Hobby was ruled out because it can't deploy private organisation repos, deploys only commits authored by the account owner, and forbids commercial use.
+- **PR approvals (2026-10-12):** option A was chosen: Claude gets its own GitHub identity (recommended: a GitHub App installed only on this repo), so the human owner can review and approve Claude's PRs. Until that exists, merges rely on required checks plus the owner's merge.
 - **Future multi-site (2026-10-12):** other sports or sectors (e.g. nearest-product finders) may later launch as separate branded sites with separate databases. Phase 1 stays FieldFinder-only with `venues` / `pitches` naming; no platform abstraction is built now. Keep the search engine, UI shell and security plumbing free of soccer-specific assumptions where it costs nothing, so they can be extracted into shared packages when a second site starts.
 - **P4:** images have mixed rights. The licensing and evidence policy under P4 is **approved**.
-  Inputs reviewed: `docs/specifications/FIELDFINDER_SPEC.md` v1.0, `docs/design/README.md`, mockups 01–05 and the Airbnb mobile reference.
-  Prepared: 2026-10-11.
 
 Contents
 
