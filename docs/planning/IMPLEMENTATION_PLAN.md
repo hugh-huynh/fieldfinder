@@ -9,6 +9,7 @@ Status: **PROPOSAL — awaiting explicit M1 go-ahead. No application code has be
 - **C11:** the Filters button sits directly next to the location search control on every page, not as a separate header item. On detail pages, pressing Enter in the search input goes to the search results page, and so does applying filters with "Show venues".
 - **D1–D23:** approved as recommended.
 - **D21:** GitHub **Enterprise Cloud** (github.com), private repo `https://github.com/hughhuynh8/fieldfinder`. Rulesets and environment required reviewers are available, so the Vercel-promotion fallback in §4 isn't needed.
+- **Future multi-site (2026-10-12):** other sports or sectors (e.g. nearest-product finders) may later launch as separate branded sites with separate databases. Phase 1 stays FieldFinder-only with `venues` / `pitches` naming; no platform abstraction is built now. Keep the search engine, UI shell and security plumbing free of soccer-specific assumptions where it costs nothing, so they can be extracted into shared packages when a second site starts.
 - **P4:** images have mixed rights. The licensing and evidence policy under P4 is **approved**.
   Inputs reviewed: `docs/specifications/FIELDFINDER_SPEC.md` v1.0, `docs/design/README.md`, mockups 01–05 and the Airbnb mobile reference.
   Prepared: 2026-10-11.
