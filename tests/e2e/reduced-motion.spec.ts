@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const seconds = (cssTime: string) => parseFloat(cssTime);
 
 // Probe an element styled like <Skeleton> (Tailwind `animate-pulse`, an infinite animation)
 // and a `transition-colors` control, using the app's real stylesheet.
-async function probeMotion(page: import("@playwright/test").Page) {
+async function probeMotion(page: Page) {
   await page.goto("/");
   return page.evaluate(() => {
     const pulse = document.createElement("div");
