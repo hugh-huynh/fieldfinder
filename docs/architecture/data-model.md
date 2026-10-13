@@ -36,7 +36,22 @@ admin_api_credentials 1 ──< field_revisions, field_publications   (actor; RE
 - **Audit history is append-only:** triggers reject UPDATE, DELETE and TRUNCATE on `field_revisions` and `field_publications`, including for the table owner.
 - **Credentials (ADR-0003):** 32-byte hash, unique; 1–20 well-formed scopes; lifetime ≤ 1 year; `token_hash` and `created_at` immutable; revocation can't be undone.
 
-Rules enforced in application code instead: slug immutability after first publish (D18, PR 2.11), "at least one published pitch" for venue visibility (search function, PR 2.4), and write-time validation via Zod.
+Rules enforced in application code instead: slug immutability after first publish (D18, PR 2.11) and write-time validation via Zod.
+
+## Roles and public access (migration 0003)
+
+| Role                                                        | Can do                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ff_public_reader`                                          | `SELECT` on `public_venues_v`, `public_pitches_v`, `public_media_v`; `EXECUTE` on `search_venues()`. Nothing on any base table.                                                                                                                            |
+| `ff_admin_writer`                                           | `SELECT/INSERT/UPDATE` on master content and provenance; `SELECT/INSERT` on the audit tables; `SELECT` and `UPDATE (last_used_at)` on `admin_api_credentials`. No `DELETE` or `TRUNCATE` anywhere. Minting credentials stays with the operator connection. |
+| `anon`, `authenticated`, `service_role` (Supabase Data API) | Nothing in `public`, including objects created later (default privileges revoked).                                                                                                                                                                         |
+
+- Both app roles are created `NOLOGIN`. Each environment's operator enables login with a password from that environment's secret store (`alter role ff_public_reader login password '…'`), so no credential lives in a migration.
+- The views run with their owner's rights (`security_invoker = false`, `security_barrier = true`), so their `WHERE` clauses are the access control and their column lists are the allowlist. pgTAP `columns_are` tests pin each list.
+- **Public visibility:** a venue is public only while it is published **and** has at least one published pitch. A pitch needs itself and its venue published. Media needs to be published and its owner public.
+- `public_venues_v.amenities` lists confirmed states only (`{"parking": "yes", "cafe": "no"}`); a missing key means "not confirmed".
+- RLS stays enabled (not forced) everywhere. The only policies are `ff_admin_writer_all`, which stop RLS hiding rows from the writer; its grants decide which commands it may run.
+- **`search_venues(p_lat, p_lng, p_radius_m, p_surface, p_pitch_format, p_floodlights, p_access, p_amenities, p_after_distance_m, p_after_id, p_limit)`:** one row per venue within 1–50 km, ordered by `(distance_m, venue_id)`. A venue matches only if one published pitch satisfies every pitch filter (effective access `COALESCE(pitch.access, venue.access)`); amenities are venue-level and need `yes`. NULL never matches. The last row's `(distance_m, venue_id)` is the next page's cursor; `total_count` counts every match in the radius. Bad input raises `22023` with the parameter name only. The API (2.7) signs the cursor and validates inputs first.
 
 ## Planned, not created (spec §4)
 
