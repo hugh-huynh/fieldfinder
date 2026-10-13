@@ -10,7 +10,8 @@ Use the Node version in `.nvmrc` (`nvm use`); Node < 22.12 breaks Vitest/Vite.
 - Verify (run before claiming done): `pnpm verify` (= format:check, lint, typecheck, test, build)
 - Unit/component tests: `pnpm test` · coverage: `pnpm test:coverage`
 - E2E: `pnpm e2e` (all) · `pnpm e2e:smoke`
-- From M2: `pnpm db:start` · `pnpm db:reset` (local only) · `pnpm test:integration` · `pnpm openapi:generate` (commit the result)
+- Local database (needs Docker): `pnpm db:start` · `pnpm db:stop` · `pnpm db:reset` (local only) · `pnpm test:db` (pgTAP in `supabase/tests/`)
+- From later M2 tickets: `pnpm test:integration` · `pnpm openapi:generate` (commit the result)
 
 ## Rules
 

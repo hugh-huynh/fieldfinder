@@ -18,8 +18,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:db": "supabase test db --local",
     "e2e": "playwright test",
     "e2e:smoke": "playwright test --grep @smoke",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:status": "supabase status",
+    "db:reset": "supabase db reset --local",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
@@ -48,6 +53,7 @@
     "msw": "2.15.0",
     "prettier": "3.9.9",
     "prettier-plugin-tailwindcss": "0.8.1",
+    "supabase": "2.118.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.1",
