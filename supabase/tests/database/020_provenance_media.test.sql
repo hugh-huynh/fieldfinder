@@ -4,6 +4,14 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
+-- Start from an empty content set so results never depend on supabase/seed.sql (rolled back).
+delete from public.field_verifications;
+delete from public.field_sources;
+delete from public.media_assets;
+delete from public.venue_amenities;
+delete from public.pitches;
+delete from public.venues;
+
 select plan(49);
 
 -- ---------------------------------------------------------------------------
