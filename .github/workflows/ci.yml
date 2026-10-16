@@ -60,7 +60,7 @@ jobs:
           set -uo pipefail
           run=true
           if [ "$EVENT_NAME" = "pull_request" ] && changed="$(git diff --name-only HEAD^1 HEAD)"; then
-            if ! grep -qE '^(supabase/|tests/fixtures/|scripts/generate-seed\.ts$|package\.json$|pnpm-lock\.yaml$|\.nvmrc$)' <<< "$changed"; then
+            if ! grep -qE '^(supabase/|tests/fixtures/|scripts/generate-seed\.ts$|package\.json$|pnpm-lock\.yaml$|\.nvmrc$|\.github/workflows/ci\.yml$)' <<< "$changed"; then
               run=false
             fi
           fi
