@@ -29,6 +29,26 @@ export default tseslint.config(
     },
   },
   {
+    // ADR-0002: only src/lib/db talks to Postgres, and the writer role is only for /api/admin routes.
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/db/**", "src/app/api/admin/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [{ name: "postgres", message: "Use publicDb() from @/lib/db/public (ADR-0002)." }],
+          patterns: [
+            {
+              group: ["@/lib/db/admin", "@/lib/db/client", "**/lib/db/admin", "**/lib/db/client"],
+              message:
+                "Use publicDb() from @/lib/db/public; the writer connection is only for /api/admin routes (ADR-0002).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["**/*.{js,mjs,cjs}"],
     extends: [tseslint.configs.disableTypeChecked],
   },
