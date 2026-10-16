@@ -47,16 +47,43 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+          # The PR merge commit plus its first parent (the base branch tip), for the diff below.
+          fetch-depth: 2
+      # Supabase takes ~2.5 min to start, so PRs that can't affect the database skip it. The job still
+      # succeeds, so the required check stays meaningful. Pushes to main always run it, and any doubt
+      # (e.g. the diff fails) runs it too.
+      - name: Detect database-related changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -uo pipefail
+          # --no-renames lists a rename as delete + add, so moving a file OUT of supabase/ still counts.
+          run=true
+          if [ "$EVENT_NAME" = "pull_request" ] && changed="$(git diff --name-only --no-renames HEAD^1 HEAD)"; then
+            if ! grep -qE '^(supabase/|tests/fixtures/|scripts/generate-seed\.ts$|package\.json$|pnpm-lock\.yaml$|\.nvmrc$|\.github/workflows/ci\.yml$)' <<< "$changed"; then
+              run=false
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          if [ "$run" = "false" ]; then
+            echo "No database-related files changed: Supabase and pgTAP skipped (they always run on main)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.changes.outputs.run == 'true'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - if: steps.changes.outputs.run == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - if: steps.changes.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
       # Migrations and pgTAP only need Postgres, so the rest of the local stack is skipped.
-      - run: pnpm db:start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
-      - run: pnpm db:reset
-      - run: pnpm test:db
+      # `db:start` on a fresh runner already applies every migration and the seed, so no `db:reset`.
+      - if: steps.changes.outputs.run == 'true'
+        run: pnpm db:start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - if: steps.changes.outputs.run == 'true'
+        run: pnpm test:db
 
   dependency-audit:
     name: dependency-audit
