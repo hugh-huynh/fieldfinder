@@ -17,6 +17,11 @@ jobs:
     name: smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Official Playwright image: browsers and their OS libraries are preinstalled, so there is no
+    # per-run `playwright install --with-deps`. Pinned by digest. Must match @playwright/test:
+    # when that is bumped, update the tag AND digest here (the check step below fails otherwise).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -27,14 +32,16 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Resolve Playwright version
-        id: pw
-        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Check image browsers match @playwright/test
+        run: |
+          missing=0
+          for dir in $(pnpm exec playwright install --dry-run chromium webkit | awk '/Install location:/ {print $3}'); do
+            if [ ! -d "$dir" ]; then
+              echo "::error::$dir is not in the container image. Update the image to v$(node -p 'require("@playwright/test/package.json").version')-noble (tag and digest)."
+              missing=1
+            fi
+          done
+          exit "$missing"
       - run: pnpm build
       - run: pnpm e2e:smoke
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
