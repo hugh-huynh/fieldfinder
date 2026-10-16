@@ -31,7 +31,9 @@ export function apiRoute<Params = Record<string, never>>(
     const elapsed = () => Math.round(performance.now() - started);
 
     try {
-      const response = await handler(request, { requestId, params });
+      const original = await handler(request, { requestId, params });
+      // Copy: some responses (e.g. Response.redirect, proxied fetches) have immutable headers.
+      const response = new Response(original.body, original);
       response.headers.set(REQUEST_ID_HEADER, requestId);
       logger.info("api.request", { ...base, status: response.status, durationMs: elapsed() });
       return response;

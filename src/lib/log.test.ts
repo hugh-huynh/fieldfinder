@@ -66,12 +66,19 @@ describe("scrubString", () => {
       `connect postgres://ff_public_reader:${REDACTED}@db.example:6543/postgres`,
     ],
     ["user near -37.8136, 144.9631 searched", `user near ${REDACTED} searched`],
+    // Single coordinates (review finding on #23): labelled, JSON-style and unlabelled.
+    ["failed near latitude -37.8136", `failed near latitude ${REDACTED}`],
+    ["lng=144.9631 lat: -37.81", `lng=${REDACTED} lat: ${REDACTED}`],
+    ['{"lon":144.96,"radiusKm":10}', `{"lon":${REDACTED},"radiusKm":10}`],
+    ["moved to -37.81361 (approx)", `moved to ${REDACTED} (approx)`],
   ])("scrubs %s", (input, expected) => {
     expect(scrubString(input)).toBe(expected);
   });
 
   it("leaves ordinary text and small numbers alone", () => {
     expect(scrubString("radius 10 km, page 2, 3.5 stars")).toBe("radius 10 km, page 2, 3.5 stars");
+    const ordinary = "took 12.5 ms, latency 3.2, Playwright 1.63.0, host 203.0.113.9, at 2026-10-16T00:00:00.000Z";
+    expect(scrubString(ordinary)).toBe(ordinary);
   });
 
   it("caps very long strings", () => {

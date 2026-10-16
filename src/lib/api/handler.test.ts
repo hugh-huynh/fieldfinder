@@ -98,6 +98,18 @@ describe("apiRoute", () => {
     expect(lines[0]?.line).not.toContain("draft-sentinel");
   });
 
+  it("passes through responses with immutable headers, such as redirects (review finding on #23)", async () => {
+    const handler = apiRoute(
+      "x",
+      () => Promise.resolve(Response.redirect("https://ff.test/elsewhere", 302)),
+      capture().logger,
+    );
+    const res = await call(handler);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://ff.test/elsewhere");
+    expect(res.headers.get(REQUEST_ID_HEADER)).toMatch(UUID);
+  });
+
   it("issues a fresh request id every time and ignores one supplied by the client", async () => {
     const handler = apiRoute("x", () => Promise.resolve(new Response("ok")), capture().logger);
     const forged = new Request("https://ff.test/api", { headers: { [REQUEST_ID_HEADER]: "forged-request-id" } });

@@ -27,6 +27,10 @@ const STRING_SCRUBBERS: readonly [RegExp, string][] = [
   [/\b([a-z][a-z0-9+.-]*:\/\/[^:/\s@]+:)[^@\s]+@/gi, `$1${REDACTED}@`],
   // Coordinate pairs in free text: "-37.8136, 144.9631"
   [/-?\d{1,3}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,}/g, REDACTED],
+  // Labelled single values: "latitude -37.8136", "lng=144.9631", "lat: -37.81", "\"lon\":144.96"
+  [/\b(lat(?:itude)?|lng|lon(?:gitude)?)("?\s*[:=]?\s*)-?\d{1,3}(?:\.\d+)?/gi, `$1$2${REDACTED}`],
+  // Any other high-precision decimal that could be a coordinate (4+ places ≈ 11 m).
+  [/(?<![\w.])-?\d{1,3}\.\d{4,}(?![\w.])/g, REDACTED],
 ];
 
 const MAX_DEPTH = 6;
