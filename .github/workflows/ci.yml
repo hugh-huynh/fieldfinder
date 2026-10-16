@@ -58,8 +58,9 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -uo pipefail
+          # --no-renames lists a rename as delete + add, so moving a file OUT of supabase/ still counts.
           run=true
-          if [ "$EVENT_NAME" = "pull_request" ] && changed="$(git diff --name-only HEAD^1 HEAD)"; then
+          if [ "$EVENT_NAME" = "pull_request" ] && changed="$(git diff --name-only --no-renames HEAD^1 HEAD)"; then
             if ! grep -qE '^(supabase/|tests/fixtures/|scripts/generate-seed\.ts$|package\.json$|pnpm-lock\.yaml$|\.nvmrc$|\.github/workflows/ci\.yml$)' <<< "$changed"; then
               run=false
             fi
