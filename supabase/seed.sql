@@ -55,6 +55,7 @@ insert into public.pitches (id, venue_id, slug, name, surface, pitch_format, len
   ('5eed0000-0000-4000-8001-000000000012', '5eed0000-0000-4000-8000-000000000008', 'oval-2', 'Oval 2', 'grass', 'training', null, null, false, 'members_only', 'published'),
   ('5eed0000-0000-4000-8001-000000000013', '5eed0000-0000-4000-8000-000000000009', 'east-pitch', 'East Pitch', 'synthetic', 'small_sided', null, null, true, null, 'published'),
   ('5eed0000-0000-4000-8001-000000000014', '5eed0000-0000-4000-8000-000000000009', 'west-pitch', 'West Pitch', 'grass', 'full', null, null, false, null, 'published'),
+  ('5eed0000-0000-4000-8001-000000000020', '5eed0000-0000-4000-8000-000000000009', 'old-pitch', 'Old Pitch ff-private-sentinel', 'grass', null, null, null, null, null, 'archived'),
   ('5eed0000-0000-4000-8001-000000000015', '5eed0000-0000-4000-8000-000000000010', 'beach-pitch', 'Beach Pitch', 'grass', 'full', null, null, null, null, 'published'),
   ('5eed0000-0000-4000-8001-000000000016', '5eed0000-0000-4000-8000-000000000011', 'pitch-1', 'Pitch 1', 'synthetic', 'full', null, null, true, null, 'published'),
   ('5eed0000-0000-4000-8001-000000000017', '5eed0000-0000-4000-8000-000000000012', 'pitch-1', 'Pitch 1', 'grass', 'full', null, null, null, null, 'published'),

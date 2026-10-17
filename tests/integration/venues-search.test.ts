@@ -78,6 +78,22 @@ describe("GET /api/venues — results", () => {
     expect(booking.items[0]).toMatchObject({ publishedPitchCount: 2, matchingPitchCount: 1 });
   });
 
+  it("links single-pitch venues to the pitch page and others to the venue page, whatever the filters", async () => {
+    const hrefs = (body: VenueSearchResponse) => Object.fromEntries(body.items.map((item) => [item.slug, item.href]));
+
+    const all = hrefs(await search(BASE));
+    expect(all[slugOf(1)]).toBe("/venues/wattlebird-reserve/pitches/main-pitch");
+    // Banksia has one published pitch and a draft one: the draft doesn't count.
+    expect(all[slugOf(3)]).toBe("/venues/banksias-corner-reserve/pitches/north-pitch");
+    expect(all[slugOf(2)]).toBe("/venues/ironbark-park");
+    // Saltbush has two published pitches and an archived one.
+    expect(all[slugOf(9)]).toBe("/venues/saltbush-sports-park");
+
+    // Only one of Ironbark's pitches is hybrid, but it still has three published pitches.
+    const filtered = hrefs(await search(`${BASE}&surface=hybrid`));
+    expect(filtered[slugOf(2)]).toBe("/venues/ironbark-park");
+  });
+
   it("filters amenities on confirmed 'yes' only and lists confirmed amenities per venue", async () => {
     const body = await search(`${BASE}&amenities=parking,toilets`);
     expect(new Set(slugs(body))).toEqual(new Set([slugOf(1), slugOf(9)]));
@@ -103,6 +119,7 @@ describe("GET /api/venues — results", () => {
         "access",
         "amenities",
         "distanceMeters",
+        "href",
         "id",
         "location",
         "matchingPitchCount",

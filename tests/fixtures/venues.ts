@@ -199,7 +199,8 @@ export const fixtures: FixtureSet = {
       ],
     }),
 
-    // 9–10 — ordinary venues inside the default 10 km radius.
+    // 9–10 — ordinary venues inside the default 10 km radius. Saltbush also has an archived pitch that
+    //       must never appear on its venue page or at its own URL.
     makeVenue(9, {
       slug: "saltbush-sports-park",
       name: "Saltbush Sports Park",
@@ -223,6 +224,12 @@ export const fixtures: FixtureSet = {
           surface: "grass",
           pitchFormat: "full",
           floodlights: false,
+        }),
+        makePitch(20, {
+          slug: "old-pitch",
+          name: `Old Pitch ${PRIVATE_SENTINEL}`,
+          surface: "grass",
+          status: "archived",
         }),
       ],
       media: [publishedOwnedMedia(7, "Two pitches beside the river path")],
