@@ -11,6 +11,11 @@ import {
   type Surface,
 } from "@/lib/domain/enums";
 
+// Reads the search URL (e.g. "?lat=-37.81&lng=144.96&surface=grass") and
+// turns it into a tidy SearchQuery object. Think of it as the bouncer at the door: anything it
+// doesn't recognise is turned away, and everything it lets in is cleaned up into one standard shape,
+// so two people asking the same question in slightly different words get exactly the same answer.
+//
 // Query contract for GET /api/venues (spec §5, PR 2.7). Parsing is strict: unknown or repeated
 // parameters are rejected. Equivalent spellings ("001", "-37.8136", reordered parameters) parse to
 // the same SearchQuery, and the route redirects them to canonicalQueryString(), so scrapers can't
@@ -48,6 +53,8 @@ const integer = z
   .regex(/^\d{1,3}$/)
   .transform(Number);
 
+// Rounding blurs the exact spot to roughly a city block, so we never handle someone's precise
+// location, and nearby searches share the same rounded centre.
 function round(value: number): number {
   const factor = 10 ** COORDINATE_DECIMALS;
   // `|| 0` turns -0 into 0 so the canonical form has one spelling.
@@ -90,6 +97,8 @@ export type QueryParseResult = { ok: true; query: SearchQuery } | { ok: false; f
 
 /** Parses URL search params. On failure returns only the offending parameter names. */
 export function parseSearchQuery(params: URLSearchParams): QueryParseResult {
+  // Copy the params into a plain object, noting any name that appears twice ("?lat=1&lat=2"):
+  // we can't tell which one was meant, so that's an error rather than a guess.
   const raw: Record<string, string> = {};
   const repeated = new Set<string>();
   for (const [key, value] of params) {
@@ -127,6 +136,9 @@ export function parseSearchQuery(params: URLSearchParams): QueryParseResult {
 }
 
 /**
+ * In plain terms: a fingerprint of the search ("grass pitches within 10 km of here"). The page
+ * bookmark (cursor) is stamped with it, so a bookmark from one search can't be used in another.
+ *
  * Stable text form of everything that decides WHICH venues match and in what order. A cursor is
  * bound to it, so a cursor can't be replayed with different filters. `limit` and `cursor` are
  * excluded: page size may change between pages without changing the result set.
@@ -146,6 +158,9 @@ export function canonicalSearchKey(query: SearchQuery): string {
 }
 
 /**
+ * In plain terms: the one "official" way to write this search as a URL. If someone asks with a
+ * different spelling, the route sends them here, so the cache only has to remember one copy.
+ *
  * The one URL query string for `query`: fixed parameter order, defaults omitted, numbers in their
  * shortest form, amenities in AMENITY_KEYS order. Every value uses only URL-safe characters, so no
  * percent-encoding is needed. The route redirects any other spelling here, so equivalent searches

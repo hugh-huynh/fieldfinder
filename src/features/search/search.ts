@@ -10,6 +10,11 @@ import { dbNumber } from "@/lib/db/row-types";
 import { decodeCursor, encodeCursor, type CursorPosition } from "./cursor";
 import { canonicalSearchKey, type SearchQuery } from "./query";
 
+// Takes a cleaned-up search (from query.ts), asks the database "which
+// venues match, nearest first?", and packs the answer into a safe response. Results come one page at
+// a time; each page ends with a signed bookmark (the cursor, see cursor.ts) the client sends back to
+// get the next page.
+//
 // GET /api/venues logic (spec §5, PR 2.7). All filtering, the same-pitch predicate and keyset
 // ordering live in search_venues() (migration 0003); this module validates the cursor, calls it as
 // ff_public_reader, and maps rows through the DTO allowlists.
@@ -72,12 +77,14 @@ function callSearch(sql: Sql, query: SearchQuery, limit: number, after: CursorPo
 export async function searchVenues(sql: Sql, query: SearchQuery, secret: string): Promise<VenueSearchResponse> {
   const searchKey = canonicalSearchKey(query);
 
+  // Step 1: if the client sent a bookmark, check it's genuine and belongs to this search.
   let after: CursorPosition | null = null;
   if (query.cursor !== null) {
     after = decodeCursor(query.cursor, searchKey, secret);
     if (after === null) throw new ApiError("invalid_request", "Invalid request parameters: cursor");
   }
 
+  // Step 2: ask the database for the next page of matches, starting just after the bookmark.
   const rows = await callSearch(sql, query, query.limit, after);
   const parsed = rows.map((row) => searchRow.parse(row));
 
@@ -89,6 +96,8 @@ export async function searchVenues(sql: Sql, query: SearchQuery, secret: string)
     totalCount = first === undefined ? 0 : searchRow.parse(first).total_count;
   }
 
+  // Step 3: look up amenities (toilets, parking...) for this page's venues, then copy only the
+  // public fields into the response.
   const ids = parsed.map((row) => row.venue_id);
   const amenityRows =
     ids.length === 0 ? [] : await sql`select id, amenities from public.public_venues_v where id = any(${ids}::uuid[])`;
@@ -104,6 +113,7 @@ export async function searchVenues(sql: Sql, query: SearchQuery, secret: string)
     return { ...summary, amenities: amenitiesById.get(summary.id) ?? {} };
   });
 
+  // Step 4: if there might be more results, hand out a new bookmark pointing at this page's last venue.
   const returned = (after?.returned ?? 0) + parsed.length;
   const last = parsed.at(-1);
   let nextCursor: string | null = null;
