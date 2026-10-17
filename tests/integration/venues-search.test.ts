@@ -10,7 +10,10 @@ import { fixtures, ORIGIN, PRIVATE_SENTINEL } from "../fixtures/venues";
 // GET /api/venues against the seeded local database, connected as ff_public_reader exactly as the
 // app is (PR 2.7). Seed: tests/fixtures/venues.ts → supabase/seed.sql. Run `pnpm db:reset` first.
 
-const BASE = `lat=${String(ORIGIN.latitude)}&lng=${String(ORIGIN.longitude)}`;
+// Canonical spelling of the fixture origin (3 dp); other spellings get a 308 to this form.
+const LAT = Math.round(ORIGIN.latitude * 1000) / 1000;
+const LNG = Math.round(ORIGIN.longitude * 1000) / 1000;
+const BASE = `lat=${String(LAT)}&lng=${String(LNG)}`;
 
 async function get(query: string): Promise<Response> {
   return GET(new Request(`https://ff.test/api/venues?${query}`), { params: Promise.resolve({}) });
@@ -76,7 +79,7 @@ describe("GET /api/venues — results", () => {
   });
 
   it("filters amenities on confirmed 'yes' only and lists confirmed amenities per venue", async () => {
-    const body = await search(`${BASE}&amenities=toilets,parking`);
+    const body = await search(`${BASE}&amenities=parking,toilets`);
     expect(new Set(slugs(body))).toEqual(new Set([slugOf(1), slugOf(9)]));
 
     const wattlebird = body.items.find((item) => item.slug === slugOf(1));
@@ -112,6 +115,20 @@ describe("GET /api/venues — results", () => {
     }
     expect(text).not.toContain(PRIVATE_SENTINEL);
     expect(res.headers.get("cache-control")).toBe("public, max-age=0, s-maxage=60, stale-while-revalidate=300");
+  });
+});
+
+describe("GET /api/venues — one URL per search", () => {
+  it("redirects other spellings to the canonical URL, which returns the same results", async () => {
+    const res = await get(
+      `lng=${String(ORIGIN.longitude)}&lat=${String(ORIGIN.latitude)}&radiusKm=010&amenities=toilets%2Cparking`,
+    );
+    expect(res.status).toBe(308);
+    const location = res.headers.get("location");
+    expect(location).toBe(`/api/venues?${BASE}&amenities=parking,toilets`);
+
+    const followed = await search(String(location).split("?")[1] ?? "");
+    expect(followed).toEqual(await search(`${BASE}&amenities=parking,toilets`));
   });
 });
 
@@ -183,6 +200,6 @@ describe("GET /api/venues — cursor misuse → 400", () => {
     const cursor = await firstCursor(`${BASE}&radiusKm=50`);
     await expectCursor400(`${BASE}&radiusKm=50&surface=grass&cursor=${cursor}`);
     await expectCursor400(`${BASE}&radiusKm=49&cursor=${cursor}`);
-    await expectCursor400(`lat=-37.9&lng=${String(ORIGIN.longitude)}&radiusKm=50&cursor=${cursor}`);
+    await expectCursor400(`lat=-37.9&lng=${String(LNG)}&radiusKm=50&cursor=${cursor}`);
   });
 });

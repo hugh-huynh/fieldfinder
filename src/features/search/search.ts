@@ -20,6 +20,9 @@ import { canonicalSearchKey, type SearchQuery } from "./query";
  */
 export const SEARCH_CACHE_CONTROL = "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
 
+/** The canonical form of a URL never changes within a deploy, so its redirect can be cached for long. */
+export const CANONICAL_REDIRECT_CACHE_CONTROL = "public, max-age=0, s-maxage=86400";
+
 export interface VenueSearchResultDto extends VenueSummaryDto {
   /** Confirmed venue amenities; a missing key means "not confirmed". */
   amenities: AmenitiesDto;
@@ -103,10 +106,15 @@ export async function searchVenues(sql: Sql, query: SearchQuery, secret: string)
 
   const returned = (after?.returned ?? 0) + parsed.length;
   const last = parsed.at(-1);
-  const nextCursor =
-    last !== undefined && returned < totalCount
-      ? encodeCursor({ distanceM: last.distance_m, venueId: last.venue_id, returned }, searchKey, secret)
-      : null;
+  let nextCursor: string | null = null;
+  if (last !== undefined && parsed.length === query.limit) {
+    const position = { distanceM: last.distance_m, venueId: last.venue_id, returned };
+    // A short page is always the end. A full page is ambiguous: the running count settles the usual
+    // case, but it can be stale if venues on earlier pages stopped matching since, so when the count
+    // says "done" check for one more row instead of trusting it.
+    const more = returned < totalCount || (await callSearch(sql, query, 1, position)).length > 0;
+    if (more) nextCursor = encodeCursor(position, searchKey, secret);
+  }
 
   return { items, totalCount, nextCursor };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalSearchKey, parseSearchQuery, type SearchQuery } from "./query";
+import { canonicalQueryString, canonicalSearchKey, parseSearchQuery, type SearchQuery } from "./query";
 
 const parse = (qs: string) => parseSearchQuery(new URLSearchParams(qs));
 
@@ -104,5 +104,23 @@ describe("canonicalSearchKey", () => {
     ["amenities", `${CENTRE}&amenities=cafe`],
   ])("changes when the %s changes", (_name, qs) => {
     expect(canonicalSearchKey(ok(qs))).not.toBe(canonicalSearchKey(ok(CENTRE)));
+  });
+});
+
+describe("canonicalQueryString", () => {
+  it.each([
+    "lat=-37.8136&lng=144.9631",
+    "lat=0&lng=-0.0004&radiusKm=1&limit=1",
+    "lat=90&lng=-180&radiusKm=50&surface=hybrid&pitchSize=training&lighting=no&access=public&amenities=cafe,parking&limit=30&cursor=abc.def",
+  ])("is a fixed point: parsing it gives the same search and the same string (%s)", (qs) => {
+    const canonical = canonicalQueryString(ok(qs));
+    expect(ok(canonical)).toEqual(ok(qs));
+    expect(canonicalQueryString(ok(canonical))).toBe(canonical);
+  });
+
+  it("omits defaults and uses fixed parameter order", () => {
+    expect(canonicalQueryString(ok("limit=20&radiusKm=10&lng=144.963&lat=-37.814&lighting=yes"))).toBe(
+      "lat=-37.814&lng=144.963&lighting=yes",
+    );
   });
 });

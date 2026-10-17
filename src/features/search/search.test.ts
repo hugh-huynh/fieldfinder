@@ -54,6 +54,28 @@ describe("searchVenues", () => {
     expect(body).toEqual({ items: [], totalCount: 7, nextCursor: null });
   });
 
+  it.each([
+    ["a venue remains", true],
+    ["nothing remains", false],
+  ])(
+    "on a full page whose running count is stale (venues on earlier pages stopped matching), checks the next row: %s",
+    async (_name, remains) => {
+      // The client has seen 5 rows; the total has since shrunk to 3, but rows still follow.
+      const NEXT = "5eed0000-0000-4000-8000-000000000002";
+      const sql = fakeSql((afterId) => {
+        if (afterId === ID) return [{ ...row, venue_id: NEXT, total_count: "3" }];
+        return remains ? [{ ...row, venue_id: "5eed0000-0000-4000-8000-000000000003", total_count: "3" }] : [];
+      });
+      const q = query("limit=1");
+      q.cursor = encodeCursor({ distanceM: 3000, venueId: ID, returned: 5 }, canonicalSearchKey(q), SECRET);
+
+      const body = await searchVenues(sql, q, SECRET);
+
+      expect(body.items.map((item) => item.id)).toEqual([NEXT]);
+      expect(body.nextCursor !== null).toBe(remains);
+    },
+  );
+
   it("rejects a bad cursor before querying the database", async () => {
     const sql = fakeSql(() => [row]);
     const q = query("");

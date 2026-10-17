@@ -12,8 +12,9 @@ import {
 } from "@/lib/domain/enums";
 
 // Query contract for GET /api/venues (spec §5, PR 2.7). Parsing is strict: unknown or repeated
-// parameters are rejected, and every value has one canonical spelling, so scrapers can't vary the
-// query to dodge caches or limits. Coordinates are rounded here as well as in the client (ADR-0005).
+// parameters are rejected. Equivalent spellings ("001", "-37.8136", reordered parameters) parse to
+// the same SearchQuery, and the route redirects them to canonicalQueryString(), so scrapers can't
+// vary the URL to dodge caches or limits. Coordinates are rounded here as well as in the client (ADR-0005).
 
 export const DEFAULT_RADIUS_KM = 10; // C9
 export const MIN_RADIUS_KM = 1;
@@ -142,4 +143,29 @@ export function canonicalSearchKey(query: SearchQuery): string {
     query.access,
     query.amenities,
   ]);
+}
+
+/**
+ * The one URL query string for `query`: fixed parameter order, defaults omitted, numbers in their
+ * shortest form, amenities in AMENITY_KEYS order. Every value uses only URL-safe characters, so no
+ * percent-encoding is needed. The route redirects any other spelling here, so equivalent searches
+ * share one cache entry and can't be varied to force repeated database queries.
+ */
+export function canonicalQueryString(query: SearchQuery): string {
+  const parts: [string, string | number | null][] = [
+    ["lat", query.lat],
+    ["lng", query.lng],
+    ["radiusKm", query.radiusKm === DEFAULT_RADIUS_KM ? null : query.radiusKm],
+    ["surface", query.surface],
+    ["pitchSize", query.pitchSize],
+    ["lighting", query.lighting === null ? null : query.lighting ? "yes" : "no"],
+    ["access", query.access],
+    ["amenities", query.amenities.length > 0 ? query.amenities.join(",") : null],
+    ["limit", query.limit === DEFAULT_LIMIT ? null : query.limit],
+    ["cursor", query.cursor],
+  ];
+  return parts
+    .filter((part): part is [string, string | number] => part[1] !== null)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join("&");
 }
