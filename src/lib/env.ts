@@ -26,3 +26,18 @@ export function databaseUrl(role: DbRole, source: Record<string, string | undefi
   }
   return parsed.data;
 }
+
+/** Name of the variable holding the key that signs search cursors (PR 2.7). */
+export const SEARCH_CURSOR_SECRET_VAR = "SEARCH_CURSOR_SECRET";
+
+/**
+ * Key for signing search cursors: at least 32 bytes, server-only. Throws without revealing the value.
+ * Rotating it only invalidates cursors already handed out (clients restart from page one).
+ */
+export function searchCursorSecret(source: Record<string, string | undefined> = process.env): string {
+  const value = source[SEARCH_CURSOR_SECRET_VAR];
+  if (value === undefined || Buffer.byteLength(value, "utf8") < 32) {
+    throw new Error(`${SEARCH_CURSOR_SECRET_VAR} is missing or shorter than 32 bytes`);
+  }
+  return value;
+}
