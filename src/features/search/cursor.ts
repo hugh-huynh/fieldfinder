@@ -6,6 +6,11 @@ import { z } from "zod";
 
 // Opaque, signed keyset cursor for GET /api/venues (PR 2.7, geo-engineer skill).
 //
+// Results are paged with keyset pagination rather than OFFSET: the next page is "rows after
+// (distance_m, venue_id) of the last row seen", which stays fast on deep pages and doesn't skip or
+// repeat rows if venues change between requests. It's a position in the distance-sorted result
+// list, not a map coordinate.
+//
 //   cursor = base64url(payload JSON) "." base64url(HMAC-SHA256(secret, domain ‖ payload ‖ query key))
 //
 // The payload holds the last row's (distance_m, venue_id) keyset position and how many rows were
