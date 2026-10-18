@@ -45,6 +45,7 @@ insert into public.pitches (id, venue_id, slug, name, surface, pitch_format, len
   ('5eed0000-0000-4000-8001-000000000002', '5eed0000-0000-4000-8000-000000000002', 'pitch-a', 'Pitch A', 'synthetic', 'full', null, null, false, null, 'published'),
   ('5eed0000-0000-4000-8001-000000000003', '5eed0000-0000-4000-8000-000000000002', 'pitch-b', 'Pitch B', 'grass', 'full', null, null, true, null, 'published'),
   ('5eed0000-0000-4000-8001-000000000004', '5eed0000-0000-4000-8000-000000000002', 'pitch-c', 'Pitch C', 'hybrid', 'small_sided', null, null, true, 'members_only', 'published'),
+  ('5eed0000-0000-4000-8001-000000000021', '5eed0000-0000-4000-8000-000000000002', '5eed0000-0000-4000-8001-000000000002', 'Pitch D', null, null, null, null, null, null, 'published'),
   ('5eed0000-0000-4000-8001-000000000005', '5eed0000-0000-4000-8000-000000000003', 'north-pitch', 'North Pitch', 'grass', 'small_sided', null, null, false, null, 'published'),
   ('5eed0000-0000-4000-8001-000000000006', '5eed0000-0000-4000-8000-000000000003', 'draft-pitch', 'Draft Pitch ff-private-sentinel', 'synthetic', null, null, null, null, null, 'draft'),
   ('5eed0000-0000-4000-8001-000000000007', '5eed0000-0000-4000-8000-000000000004', 'pitch-1', 'Pitch 1', 'grass', null, null, null, null, null, 'draft'),

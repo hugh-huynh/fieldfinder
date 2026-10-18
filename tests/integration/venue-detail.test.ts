@@ -1,26 +1,25 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import { GET as getPitchRoute } from "@/app/api/venues/[idOrSlug]/pitches/[pitchIdOrSlug]/route";
-import { GET as getVenueRoute } from "@/app/api/venues/[idOrSlug]/route";
+import { GET as getPitchRoute } from "@/app/api/venues/[venueSlug]/pitches/[pitchSlug]/route";
+import { GET as getVenueRoute } from "@/app/api/venues/[venueSlug]/route";
 import type { PitchDetailResponse, VenueDetailResponse } from "@/features/venues/detail";
 import { venueRouteTarget } from "@/features/venues/route-target";
 import type { ApiErrorBody } from "@/lib/api/errors";
 import { publicDb } from "@/lib/db/public";
 
-import { fixtureId } from "../fixtures/factory";
 import { fixtures, PRIVATE_SENTINEL } from "../fixtures/venues";
 
-// GET /api/venues/[idOrSlug] and /pitches/[pitchIdOrSlug] against the seeded local database,
-// connected as ff_public_reader exactly as the app is (PR 2.8). Run `pnpm db:reset` first.
+// GET /api/venues/[venueSlug] and /pitches/[pitchSlug] against the seeded local database, connected
+// as ff_public_reader exactly as the app is (PR 2.8). Slugs only, never ids. Run `pnpm db:reset` first.
 
 const request = new Request("https://ff.test/api/venues/detail");
 
-function getVenue(idOrSlug: string): Promise<Response> {
-  return getVenueRoute(request, { params: Promise.resolve({ idOrSlug }) });
+function getVenue(venueSlug: string): Promise<Response> {
+  return getVenueRoute(request, { params: Promise.resolve({ venueSlug }) });
 }
 
-function getPitch(idOrSlug: string, pitchIdOrSlug: string): Promise<Response> {
-  return getPitchRoute(request, { params: Promise.resolve({ idOrSlug, pitchIdOrSlug }) });
+function getPitch(venueSlug: string, pitchSlug: string): Promise<Response> {
+  return getPitchRoute(request, { params: Promise.resolve({ venueSlug, pitchSlug }) });
 }
 
 async function ok<T>(res: Response): Promise<T> {
@@ -82,7 +81,7 @@ afterAll(async () => {
   await publicDb().end({ timeout: 5 });
 });
 
-describe("GET /api/venues/[idOrSlug]", () => {
+describe("GET /api/venues/[venueSlug]", () => {
   it("returns a published venue with its published pitches and allowlisted fields only", async () => {
     const body = await ok<VenueDetailResponse>(await getVenue("wattlebird-reserve"));
 
@@ -111,10 +110,8 @@ describe("GET /api/venues/[idOrSlug]", () => {
     });
   });
 
-  it("finds the same venue by id", async () => {
-    const bySlug = await ok<VenueDetailResponse>(await getVenue("wattlebird-reserve"));
-    const byId = await ok<VenueDetailResponse>(await getVenue(venue(1).id));
-    expect(byId).toEqual(bySlug);
+  it("does not look venues up by id", async () => {
+    await expect404(await getVenue(venue(1).id));
   });
 
   it("lists only published pitches, ordered by name", async () => {
@@ -127,7 +124,7 @@ describe("GET /api/venues/[idOrSlug]", () => {
     expect(saltbush.venue.publishedPitchCount).toBe(2);
 
     const ironbark = await ok<VenueDetailResponse>(await getVenue("ironbark-park"));
-    expect(ironbark.pitches.map((p) => p.name)).toEqual(["Pitch A", "Pitch B", "Pitch C"]);
+    expect(ironbark.pitches.map((p) => p.name)).toEqual(["Pitch A", "Pitch B", "Pitch C", "Pitch D"]);
   });
 
   it("keeps unknown values null", async () => {
@@ -149,14 +146,12 @@ describe("GET /api/venues/[idOrSlug]", () => {
     ["an archived venue", "old-mill-oval"],
     ["a published venue with zero published pitches", "lilly-pilly-fields"],
     ["a slug that doesn't exist", "no-such-venue"],
-  ])("404 for %s, by slug and by id", async (_name, slug) => {
+  ])("404 for %s", async (_name, slug) => {
     await expect404(await getVenue(slug));
-    const fixture = fixtures.venues.find((v) => v.slug === slug);
-    await expect404(await getVenue(fixture?.id ?? fixtureId("venue", 999)));
   });
 });
 
-describe("GET /api/venues/[idOrSlug]/pitches/[pitchIdOrSlug]", () => {
+describe("GET /api/venues/[venueSlug]/pitches/[pitchSlug]", () => {
   it("returns a published pitch with its venue's public details", async () => {
     const body = await ok<PitchDetailResponse>(await getPitch("wattlebird-reserve", "main-pitch"));
 
@@ -167,11 +162,18 @@ describe("GET /api/venues/[idOrSlug]/pitches/[pitchIdOrSlug]", () => {
     expect(body.venue).toMatchObject({ slug: "wattlebird-reserve", amenities: { toilets: "yes", parking: "yes" } });
   });
 
-  it("accepts ids or slugs for either segment", async () => {
-    const pitch = venue(1).pitches[0];
-    const bySlugs = await ok<PitchDetailResponse>(await getPitch("wattlebird-reserve", "main-pitch"));
-    expect(await ok<PitchDetailResponse>(await getPitch(venue(1).id, "main-pitch"))).toEqual(bySlugs);
-    expect(await ok<PitchDetailResponse>(await getPitch("wattlebird-reserve", String(pitch?.id)))).toEqual(bySlugs);
+  it("does not look venues or pitches up by id", async () => {
+    await expect404(await getPitch(venue(1).id, "main-pitch"));
+    await expect404(await getPitch("wattlebird-reserve", String(venue(1).pitches[0]?.id)));
+  });
+
+  it("resolves a uuid-shaped slug as a slug, even when it equals another pitch's id", async () => {
+    // Ironbark's Pitch D has Pitch A's id as its slug (fixture 21).
+    const pitchA = venue(2).pitches[0];
+    expect(pitchA?.name).toBe("Pitch A");
+    const body = await ok<PitchDetailResponse>(await getPitch("ironbark-park", String(pitchA?.id)));
+    expect(body.pitch).toMatchObject({ name: "Pitch D", slug: pitchA?.id });
+    expect(body.pitch.id).not.toBe(pitchA?.id);
   });
 
   it("shows access inheritance: own value null, effective value from the venue", async () => {
@@ -198,16 +200,12 @@ describe("GET /api/venues/[idOrSlug]/pitches/[pitchIdOrSlug]", () => {
     ["a published pitch under an archived venue", "old-mill-oval", "pitch-1"],
     ["a pitch slug that doesn't exist", "wattlebird-reserve", "no-such-pitch"],
     ["a venue that doesn't exist", "no-such-venue", "pitch-1"],
-  ])("404 for %s, by slug and by id", async (_name, venueSlug, pitchSlug) => {
+  ])("404 for %s", async (_name, venueSlug, pitchSlug) => {
     await expect404(await getPitch(venueSlug, pitchSlug));
-    const fixture = fixtures.venues.find((v) => v.slug === venueSlug);
-    const pitch = fixture?.pitches.find((p) => p.slug === pitchSlug);
-    await expect404(await getPitch(fixture?.id ?? fixtureId("venue", 999), pitch?.id ?? fixtureId("pitch", 999)));
   });
 
-  it("404 for a published pitch id requested under another venue", async () => {
-    const ironbarkPitch = venue(2).pitches[0];
-    await expect404(await getPitch("wattlebird-reserve", String(ironbarkPitch?.id)));
+  it("404 for a published pitch slug requested under another venue", async () => {
+    await expect404(await getPitch("wattlebird-reserve", "pitch-a")); // Ironbark's
   });
 });
 
@@ -222,7 +220,7 @@ describe("route target from live data", () => {
     ],
     // An archived pitch doesn't count either.
     ["two published pitches plus an archived one", "saltbush-sports-park", "/venues/saltbush-sports-park"],
-    ["three published pitches", "ironbark-park", "/venues/ironbark-park"],
+    ["four published pitches", "ironbark-park", "/venues/ironbark-park"],
   ])("%s → %s", async (_name, slug, target) => {
     const body = await ok<VenueDetailResponse>(await getVenue(slug));
     expect(

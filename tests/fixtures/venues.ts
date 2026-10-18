@@ -80,6 +80,9 @@ export const fixtures: FixtureSet = {
           floodlights: true,
           access: "members_only",
         }),
+        // A uuid-shaped slug, equal to Pitch A's id: detail URLs are slug-only, so this must resolve
+        // to Pitch D, never to Pitch A.
+        makePitch(21, { slug: fixtureId("pitch", 2), name: "Pitch D" }),
       ],
       media: [
         publishedOwnedMedia(4, "Three pitches seen from the pavilion", 0),

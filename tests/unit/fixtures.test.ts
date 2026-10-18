@@ -29,7 +29,7 @@ describe("fixture dataset", () => {
     }).toMatchInlineSnapshot(`
       {
         "media": 7,
-        "pitches": 20,
+        "pitches": 21,
         "publicVenues": 11,
         "publishedMedia": 5,
         "sources": 1,

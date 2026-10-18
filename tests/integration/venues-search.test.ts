@@ -89,7 +89,7 @@ describe("GET /api/venues — results", () => {
     // Saltbush has two published pitches and an archived one.
     expect(all[slugOf(9)]).toBe("/venues/saltbush-sports-park");
 
-    // Only one of Ironbark's pitches is hybrid, but it still has three published pitches.
+    // Only one of Ironbark's pitches is hybrid, but it still has four published pitches.
     const filtered = hrefs(await search(`${BASE}&surface=hybrid`));
     expect(filtered[slugOf(2)]).toBe("/venues/ironbark-park");
   });

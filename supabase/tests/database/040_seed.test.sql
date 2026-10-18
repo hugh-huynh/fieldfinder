@@ -11,7 +11,7 @@ select plan(17);
 -- ---------------------------------------------------------------------------
 
 select is((select count(*)::int from public.venues), 14, 'all 14 fixture venues are seeded');
-select is((select count(*)::int from public.pitches), 20, 'all 20 fixture pitches are seeded');
+select is((select count(*)::int from public.pitches), 21, 'all 21 fixture pitches are seeded');
 select is((select count(*)::int from public.media_assets), 7, 'all 7 fixture images are seeded');
 
 select ok(
@@ -25,7 +25,7 @@ select is(
   'draft, archived and all-draft-pitch venues are hidden (11 of 14 public)'
 );
 
-select is((select count(*)::int from public.public_pitches_v), 15, 'only published pitches of published venues are public');
+select is((select count(*)::int from public.public_pitches_v), 16, 'only published pitches of published venues are public');
 select is((select count(*)::int from public.public_media_v), 5, 'draft images are hidden (5 of 7 public)');
 
 -- ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ select is(
   (select single_pitch_slug from public.search_venues(-37.8136, 144.9631, p_surface => 'hybrid')
     where slug = 'ironbark-park'),
   null,
-  'one matching pitch out of three published still leaves single_pitch_slug NULL'
+  'one matching pitch out of four published still leaves single_pitch_slug NULL'
 );
 
 select set_eq(
