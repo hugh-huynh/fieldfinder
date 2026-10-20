@@ -53,6 +53,11 @@ Rules enforced in application code instead: slug immutability after first publis
 - RLS stays enabled (not forced) everywhere. The only policies are `ff_admin_writer_all`, which stop RLS hiding rows from the writer; its grants decide which commands it may run.
 - **`search_venues(p_lat, p_lng, p_radius_m, p_surface, p_pitch_format, p_floodlights, p_access, p_amenities, p_after_distance_m, p_after_id, p_limit)`:** one row per venue within 1–50 km, ordered by `(distance_m, venue_id)`. A venue matches only if one published pitch satisfies every pitch filter (effective access `COALESCE(pitch.access, venue.access)`); amenities are venue-level and need `yes`. NULL never matches. The last row's `(distance_m, venue_id)` is the next page's cursor; `total_count` counts every match in the radius. Bad input raises `22023` with the parameter name only. The API (2.7) signs the cursor and validates inputs first.
 
+## Admin rate limits (migration 0005)
+
+- `admin_rate_limits (bucket, window_start, hits, expires_at)`: fixed-window counters for the admin API limiter (ADR-0004). Bucket keys are `<rule>:<sha256 of subject>`, so no raw IP or credential id is stored. Rows expire with their window and are purged by later calls.
+- Nobody has privileges on the table. `admin_rate_limit_hit(bucket, window_seconds, limit, cost)` is `SECURITY DEFINER` and executable by `ff_admin_writer` only. Cost 0 checks without counting.
+
 ## Planned, not created (spec §4)
 
 These are documented so current choices don't block them. **Do not create them in the MVP.**
