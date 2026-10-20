@@ -21,6 +21,7 @@ const searchRow = {
   distance_m: 3411.62,
   published_pitch_count: 1,
   matching_pitch_count: 1,
+  single_pitch_slug: "main-pitch",
   total_count: "7", // postgres.js returns bigint as a string; not part of the DTO
 };
 
@@ -61,6 +62,7 @@ const mediaRow = {
 const SUMMARY_KEYS = [
   "access",
   "distanceMeters",
+  "href",
   "id",
   "location.latitude",
   "location.longitude",
@@ -85,7 +87,13 @@ describe("toVenueSummaryDto", () => {
       distanceMeters: 3412,
       publishedPitchCount: 1,
       matchingPitchCount: 1,
+      href: "/venues/wattlebird-reserve/pitches/main-pitch",
     });
+  });
+
+  it("links a venue with several published pitches to the venue page", () => {
+    const dto = toVenueSummaryDto({ ...searchRow, published_pitch_count: 3, single_pitch_slug: null });
+    expect(dto.href).toBe("/venues/wattlebird-reserve");
   });
 
   it("keeps unknown access as null", () => {
