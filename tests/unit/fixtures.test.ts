@@ -29,7 +29,7 @@ describe("fixture dataset", () => {
     }).toMatchInlineSnapshot(`
       {
         "media": 7,
-        "pitches": 19,
+        "pitches": 21,
         "publicVenues": 11,
         "publishedMedia": 5,
         "sources": 1,
@@ -52,6 +52,7 @@ describe("fixture dataset", () => {
     expect(fixtures.venues.some((v) => v.status === "draft")).toBe(true);
     expect(fixtures.venues.some((v) => v.status === "archived")).toBe(true);
     expect(pitches.some(({ venue, pitch }) => venue.status === "published" && pitch.status === "draft")).toBe(true);
+    expect(pitches.some(({ venue, pitch }) => venue.status === "published" && pitch.status === "archived")).toBe(true);
     expect(
       pitches.some(
         ({ pitch }) =>
