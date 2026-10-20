@@ -3,6 +3,8 @@ import { z } from "zod";
 import { dbNumber, dbTimestamp } from "@/lib/db/row-types";
 import { ACCESS_CLASSES, AMENITY_KEYS, type AccessClass, type AmenityKey } from "@/lib/domain/enums";
 
+import { venueRouteTarget } from "./route-target";
+
 // Public venue and media DTOs (CLAUDE.md rule 3). Each mapper validates the row, then builds the DTO
 // field by field: that construction IS the allowlist, so a column added to a view can never reach a
 // client until it is added here deliberately. NULL means "not confirmed" and stays null.
@@ -23,6 +25,7 @@ const venueSearchRow = z.object({
   distance_m: dbNumber,
   published_pitch_count: dbNumber,
   matching_pitch_count: dbNumber,
+  single_pitch_slug: z.string().nullable(),
 });
 
 export interface VenueSummaryDto {
@@ -38,6 +41,8 @@ export interface VenueSummaryDto {
   distanceMeters: number;
   publishedPitchCount: number;
   matchingPitchCount: number;
+  /** Page the card and marker preview link to: the pitch page for a single-pitch venue (spec §2). */
+  href: string;
 }
 
 export function toVenueSummaryDto(row: unknown): VenueSummaryDto {
@@ -53,6 +58,8 @@ export function toVenueSummaryDto(row: unknown): VenueSummaryDto {
     distanceMeters: Math.round(r.distance_m),
     publishedPitchCount: r.published_pitch_count,
     matchingPitchCount: r.matching_pitch_count,
+    // search_venues() returns the slug only when the venue has exactly one published pitch.
+    href: venueRouteTarget(r.slug, r.single_pitch_slug === null ? [] : [r.single_pitch_slug]),
   };
 }
 

@@ -30,6 +30,7 @@ const row = {
   distance_m: 3411.6,
   published_pitch_count: 1,
   matching_pitch_count: 1,
+  single_pitch_slug: "main-pitch",
   total_count: "7",
 };
 
