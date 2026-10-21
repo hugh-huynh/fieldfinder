@@ -28,7 +28,6 @@ import { createPostgresRateLimiter } from "@/lib/rate-limit/postgres";
 //  ├─ 5. Lacks the required scope?    → 403
 //  └─ ✓ Handler runs with the credential and the writer database connection; response marked no-store
 
-
 export interface AdminContext<Params> extends ApiContext<Params> {
   admin: AdminPrincipal;
   sql: Sql;
