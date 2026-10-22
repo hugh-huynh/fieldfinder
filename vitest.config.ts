@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-import { LOCAL_READER_URL, TEST_CURSOR_SECRET } from "./tests/setup/integration-env.ts";
+import { LOCAL_READER_URL, LOCAL_WRITER_URL, TEST_CURSOR_SECRET } from "./tests/setup/integration-env.ts";
 
 const src = fileURLToPath(new URL("./src", import.meta.url));
 // `server-only` throws outside Next's server build; tests load server modules directly.
@@ -45,6 +45,7 @@ export default defineConfig({
           globalSetup: ["./tests/setup/integration-db.ts"],
           env: {
             DATABASE_URL_PUBLIC_READER: LOCAL_READER_URL,
+            DATABASE_URL_ADMIN_WRITER: LOCAL_WRITER_URL,
             SEARCH_CURSOR_SECRET: TEST_CURSOR_SECRET,
           },
           // One shared database: run files one at a time.

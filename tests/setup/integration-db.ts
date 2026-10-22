@@ -1,12 +1,12 @@
 import postgres from "postgres";
 
-import { LOCAL_ADMIN_URL, LOCAL_READER_URL } from "./integration-env.ts";
+import { LOCAL_ADMIN_URL, LOCAL_READER_URL, LOCAL_WRITER_URL } from "./integration-env.ts";
 
-// Global setup for the integration project (PR 2.7). Runs once, as the local superuser-like
+// Global setup for the integration project (PRs 2.7, 2.9). Runs once, as the local superuser-like
 // `postgres` role, and refuses to touch anything but a database on this machine.
 //
-// The app roles are created NOLOGIN by migration 0003. Here, on the LOCAL container only, the reader
-// gets a throwaway password so tests can connect exactly as the app does. Hosted environments set
+// The app roles are created NOLOGIN by migration 0003. Here, on the LOCAL container only, both
+// roles get throwaway passwords so tests can connect exactly as the app does. Hosted environments set
 // their own passwords from their secret stores (docs/architecture/data-model.md).
 
 const ADMIN_URL = LOCAL_ADMIN_URL;
@@ -19,14 +19,19 @@ function assertLocal(url: string, name: string): void {
 }
 
 export default async function setup(): Promise<void> {
-  const readerUrl = LOCAL_READER_URL;
   assertLocal(ADMIN_URL, "the admin URL");
-  assertLocal(readerUrl, "the reader URL");
+  assertLocal(LOCAL_READER_URL, "the reader URL");
+  assertLocal(LOCAL_WRITER_URL, "the writer URL");
 
   const sql = postgres(ADMIN_URL, { max: 1, onnotice: () => undefined, connect_timeout: 5 });
   try {
-    const password = decodeURIComponent(new URL(readerUrl).password);
-    await sql.unsafe(`alter role ff_public_reader login password '${password.replaceAll("'", "''")}'`);
+    for (const [role, url] of [
+      ["ff_public_reader", LOCAL_READER_URL],
+      ["ff_admin_writer", LOCAL_WRITER_URL],
+    ] as const) {
+      const password = decodeURIComponent(new URL(url).password);
+      await sql.unsafe(`alter role ${role} login password '${password.replaceAll("'", "''")}'`);
+    }
 
     const [row] = await sql<{ count: string }[]>`select count(*)::text as count from public.venues`;
     if (row?.count === "0") {
