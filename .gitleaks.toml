@@ -1,0 +1,11 @@
+# gitleaks configuration (CI `secret-scan` job). Keeps every default rule and adds FieldFinder's own
+# secret formats.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "fieldfinder-admin-token"
+description = "FieldFinder admin API bearer token (ADR-0003): ffadm_ + 43 base64url characters"
+regex = '''\bffadm_[A-Za-z0-9_-]{43}(?:[^A-Za-z0-9_-]|$)'''
+keywords = ["ffadm_"]
