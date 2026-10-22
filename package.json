@@ -27,6 +27,7 @@
     "db:status": "supabase status",
     "db:reset": "supabase db reset --local",
     "seed:generate": "node scripts/generate-seed.ts",
+    "admin:credential": "node scripts/admin-credential.ts",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
