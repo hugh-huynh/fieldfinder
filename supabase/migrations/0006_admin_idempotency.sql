@@ -70,10 +70,14 @@ begin
   end if;
 
   -- An expired claim on this key no longer counts; also purge a bounded batch of other expired rows.
+  -- SKIP LOCKED: the purge never waits on a row another transaction holds (e.g. one reclaiming its own
+  -- expired key), so two concurrent purges can't deadlock; skipped rows go in a later purge.
   delete from public.admin_idempotency_keys k
   where k.credential_id = p_credential_id and k.idempotency_key = p_key and k.expires_at <= now();
   delete from public.admin_idempotency_keys
-  where ctid in (select ctid from public.admin_idempotency_keys where expires_at <= now() limit 100);
+  where ctid in (
+    select ctid from public.admin_idempotency_keys where expires_at <= now() limit 100 for update skip locked
+  );
 
   insert into public.admin_idempotency_keys (credential_id, idempotency_key, route, request_hash)
   values (p_credential_id, p_key, p_route, p_request_hash)
