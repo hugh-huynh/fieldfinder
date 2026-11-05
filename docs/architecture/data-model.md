@@ -58,6 +58,11 @@ Rules enforced in application code instead: slug immutability after first publis
 - `admin_rate_limits (bucket, window_start, hits, expires_at)`: fixed-window counters for the admin API limiter (ADR-0004). Bucket keys are `<rule>:<sha256 of subject>`, so no raw IP or credential id is stored. Rows expire with their window and are purged by later calls.
 - Nobody has privileges on the table. `admin_rate_limit_hit(bucket, window_seconds, limit, cost)` is `SECURITY DEFINER` and executable by `ff_admin_writer` only. Cost 0 checks without counting.
 
+## Admin idempotency keys (migration 0006)
+
+- `admin_idempotency_keys (credential_id, idempotency_key, route, request_hash, response_*, expires_at)`: the first successful response to each `Idempotency-Key` per credential, kept for 24 hours (PR 2.10).
+- Nobody has privileges on the table. `admin_idempotency_begin()` claims a key or reports `replay` / `mismatch`; `admin_idempotency_finish()` stores the response. Both are `SECURITY DEFINER`, executable by `ff_admin_writer` only, and run inside the mutation's transaction: a failed mutation rolls its claim back, and a concurrent duplicate waits for the first to commit, then replays it.
+
 ## Planned, not created (spec §4)
 
 These are documented so current choices don't block them. **Do not create them in the MVP.**
