@@ -7,6 +7,10 @@ import { DATABASE_URL_VARS, databaseUrl, type DbRole } from "@/lib/env";
 import { tlsOptions } from "./tls";
 
 export type Sql = postgres.Sql;
+/** The connection inside `sql.begin(async (tx) => …)`. */
+export type Tx = postgres.TransactionSql;
+/** A value `tx.json()` accepts. Pass objects through it: postgres.js encodes jsonb parameters itself. */
+export type JsonValue = postgres.JSONValue;
 
 /** postgres.js options per role (ADR-0002). Exported for tests. */
 export function connectionOptions(role: DbRole, url: string): postgres.Options<Record<string, never>> {
