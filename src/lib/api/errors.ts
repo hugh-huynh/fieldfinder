@@ -8,6 +8,8 @@ export const API_ERRORS = {
   forbidden: { status: 403, message: "You don't have access to this resource." },
   not_found: { status: 404, message: "Not found." },
   conflict: { status: 409, message: "The resource was changed by another request." },
+  // Same Idempotency-Key, different request (PR 2.10). 422 follows the IETF Idempotency-Key draft.
+  idempotency_mismatch: { status: 422, message: "This Idempotency-Key was already used for a different request." },
   rate_limited: { status: 429, message: "Too many requests. Try again later." },
   internal: { status: 500, message: "Something went wrong. Please try again." },
   unavailable: { status: 503, message: "The service is temporarily unavailable." },
