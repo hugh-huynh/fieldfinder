@@ -56,12 +56,12 @@
     "eslint-plugin-jsx-a11y": "6.10.2",
     "jsdom": "30.1.3",
     "msw": "3.0.3",
-    "prettier": "3.9.9",
+    "prettier": "3.9.10",
     "prettier-plugin-tailwindcss": "0.8.1",
-    "supabase": "2.119.0",
+    "supabase": "2.121.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.71.0",
+    "typescript-eslint": "8.72.0",
     "vitest": "5.0.5"
   }
 }
