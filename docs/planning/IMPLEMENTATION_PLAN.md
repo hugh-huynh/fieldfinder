@@ -14,6 +14,12 @@ Inputs reviewed: `docs/specifications/FIELDFINDER_SPEC.md` v1.0, `docs/design/RE
 - **D23 (confirmed 2026-10-12):** Vercel **Pro**, connected to the organisation repo. Hobby was ruled out because it can't deploy private organisation repos, deploys only commits authored by the account owner, and forbids commercial use.
 - **Detail API by slug only (2026-10-18, overrides spec §5 `idOrSlug`):** the public detail endpoints are `GET /api/venues/[venueSlug]` and `GET /api/venues/[venueSlug]/pitches/[pitchSlug]`, and they accept slugs only, not ids. Slugs are already immutable after publish (D18) and page URLs use them. Accepting ids as well gave each record two URLs and made a uuid-shaped slug unreachable. Responses still include `id`. Admin routes keep addressing records by id.
 - **D5 revised (2026-10-20, option B):** no Upstash. Public routes are rate-limited by Vercel Firewall rules at the edge. Admin routes also get an app-level limiter backed by Postgres (per credential, plus failed authentications per client IP). See ADR-0004.
+- **Publishing rules (2026-11-05, PR 2.11):**
+  - A venue can be published once it has **≥1 `field_verifications` record** and ≥1 selected pitch of its own. Nothing else is required: unknown attributes stay "Not confirmed" (spec: never invent field data).
+  - Verifications are recorded with `POST /api/admin/venues/[id]/verifications`, which is admin-only and internal.
+  - A pitch can be published on its own only once its venue is published.
+  - Archiving a venue archives all its pitches and is final through the API.
+  - Media publishing moves to 2.12, together with the storage copy.
 - **PR approvals (2026-10-12):** option A was chosen: Claude gets its own GitHub identity (recommended: a GitHub App installed only on this repo), so the human owner can review and approve Claude's PRs. Until that exists, merges rely on required checks plus the owner's merge.
 - **Future multi-site (2026-10-12):** other sports or sectors (e.g. nearest-product finders) may later launch as separate branded sites with separate databases. Phase 1 stays FieldFinder-only with `venues` / `pitches` naming; no platform abstraction is built now. Keep the search engine, UI shell and security plumbing free of soccer-specific assumptions where it costs nothing, so they can be extracted into shared packages when a second site starts.
 - **P4:** images have mixed rights. The licensing and evidence policy under P4 is **approved**.

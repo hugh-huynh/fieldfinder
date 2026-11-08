@@ -39,6 +39,16 @@ async function mint(
   return token;
 }
 
+/**
+ * The limiter counts in fixed windows aligned to the clock (migration 0005), so a burst that straddles
+ * a window boundary is split across two counts. Start bursts with at least `margin` ms of the window left.
+ */
+async function startOfFreshWindow(windowSeconds: number, margin = 5_000): Promise<void> {
+  const windowMs = windowSeconds * 1000;
+  const left = windowMs - (Date.now() % windowMs);
+  if (left < margin) await new Promise((resolve) => setTimeout(resolve, left + 100));
+}
+
 async function errorOf(res: Response): Promise<ApiErrorBody> {
   return (await res.json()) as ApiErrorBody;
 }
@@ -123,6 +133,7 @@ describe("adminRoute — 403", () => {
 
 describe("adminRoute — 429", () => {
   it("blocks a client after too many failed attempts, with Retry-After", async () => {
+    await startOfFreshWindow(ADMIN_AUTH_FAILURES.windowSeconds);
     for (let i = 0; i < ADMIN_AUTH_FAILURES.limit; i++) {
       expect((await call({ authorization: "Bearer nope" })).status).toBe(401);
     }
@@ -136,6 +147,7 @@ describe("adminRoute — 429", () => {
 
   it("limits requests per credential", async () => {
     const token = await mint("it-busy");
+    await startOfFreshWindow(ADMIN_CREDENTIAL_REQUESTS.windowSeconds);
     for (let i = 0; i < ADMIN_CREDENTIAL_REQUESTS.limit; i++) {
       expect((await call(bearer(token))).status).toBe(200);
     }

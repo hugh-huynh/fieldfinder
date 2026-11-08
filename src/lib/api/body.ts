@@ -6,8 +6,20 @@ import { ApiError } from "./errors";
 /** Admin payloads are small records; anything bigger is a mistake or an attack. */
 export const MAX_JSON_BODY_BYTES = 64 * 1024;
 
-export async function readJsonBody(request: Request): Promise<{ text: string; json: unknown }> {
+/**
+ * `optional`: an empty body (no Content-Type needed) reads as `{}`. For actions like unpublish whose
+ * body only carries an optional reason.
+ */
+export async function readJsonBody(
+  request: Request,
+  options: { optional?: boolean } = {},
+): Promise<{ text: string; json: unknown }> {
   const type = request.headers.get("content-type") ?? "";
+  if (options.optional === true && type === "") {
+    const text = await request.text();
+    if (text === "") return { text, json: {} };
+    throw new ApiError("invalid_request", "Send a JSON body with Content-Type: application/json.");
+  }
   if (!/^application\/json(\s*;|$)/i.test(type)) {
     throw new ApiError("invalid_request", "Send a JSON body with Content-Type: application/json.");
   }
