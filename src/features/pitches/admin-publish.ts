@@ -14,9 +14,19 @@ import { readAdminPitch } from "./admin-service";
 // (the venue's verification gate then already applies). If-Match, one field_publications row per
 // transition, 409 when nothing would change. Archiving is final through the API.
 
-async function lockPitch(tx: Tx, id: string, ifMatch: string): Promise<AdminPitchDto> {
+/**
+ * Locks the pitch's venue (shared) and then the pitch, and checks the version. Always venue first,
+ * pitch second: venue publish and archive lock in that order too, so overlapping transitions queue
+ * instead of deadlocking. A pitch never moves to another venue, so reading venue_id first is safe.
+ */
+async function lockPitch(tx: Tx, id: string, ifMatch: string): Promise<{ pitch: AdminPitchDto; venueStatus: string }> {
+  const [owner] = await tx<{ venue_id: string }[]>`select venue_id from public.pitches where id = ${id}::uuid`;
+  if (owner === undefined) throw new ApiError("not_found");
+  const [venue] = await tx<{ status: string }[]>`
+    select status from public.venues where id = ${owner.venue_id}::uuid for share
+  `;
   const [locked] = await tx`select id from public.pitches where id = ${id}::uuid for update`;
-  if (locked === undefined) throw new ApiError("not_found");
+  if (venue === undefined || locked === undefined) throw new ApiError("not_found");
   const pitch = await readAdminPitch(tx, id);
   if (pitch === null) throw new ApiError("not_found");
   if (pitch.version !== ifMatch) {
@@ -26,7 +36,7 @@ async function lockPitch(tx: Tx, id: string, ifMatch: string): Promise<AdminPitc
     );
   }
   if (pitch.status === "archived") throw new ApiError("conflict", "An archived pitch can't change status.");
-  return pitch;
+  return { pitch, venueStatus: venue.status };
 }
 
 async function transition(
@@ -52,19 +62,16 @@ async function transition(
 }
 
 export async function publishPitch(tx: Tx, id: string, ifMatch: string, input: Transition, actor: Actor) {
-  const pitch = await lockPitch(tx, id, ifMatch);
+  const { pitch, venueStatus } = await lockPitch(tx, id, ifMatch);
   if (pitch.status === "published") throw new ApiError("conflict", "The pitch is already published.");
-  const [venue] = await tx<{ status: string }[]>`
-    select status from public.venues where id = ${pitch.venueId}::uuid for share
-  `;
-  if (venue?.status !== "published") {
+  if (venueStatus !== "published") {
     throw new ApiError("conflict", "Publish the venue first, selecting this pitch.");
   }
   return transition(tx, pitch, "published", input, actor);
 }
 
 export async function unpublishPitch(tx: Tx, id: string, ifMatch: string, input: Transition, actor: Actor) {
-  const pitch = await lockPitch(tx, id, ifMatch);
+  const { pitch } = await lockPitch(tx, id, ifMatch);
   if (pitch.status !== "published") throw new ApiError("conflict", "The pitch isn't published.");
   // If this was the venue's last published pitch, the venue drops out of public search and pages too
   // (public_venues_v needs ≥1 published pitch) until another is published.
@@ -72,6 +79,6 @@ export async function unpublishPitch(tx: Tx, id: string, ifMatch: string, input:
 }
 
 export async function archivePitch(tx: Tx, id: string, ifMatch: string, input: Transition, actor: Actor) {
-  const pitch = await lockPitch(tx, id, ifMatch);
+  const { pitch } = await lockPitch(tx, id, ifMatch);
   return transition(tx, pitch, "archived", input, actor);
 }

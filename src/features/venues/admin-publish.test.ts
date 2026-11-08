@@ -11,25 +11,31 @@ import { verificationCreateSchema } from "./admin-verification";
 
 const A = "5eed0000-0000-4000-8001-000000000001";
 const B = "5eed0000-0000-4000-8001-000000000002";
+const sel = (id: string, version = "1761091201000000") => ({ id, version });
 
 describe("venuePublishSchema", () => {
   it("needs at least one distinct pitch id, with an optional reason", () => {
-    expect(venuePublishSchema.safeParse({ pitchIds: [A] }).success).toBe(true);
-    expect(venuePublishSchema.safeParse({ pitchIds: [A, B], reason: " Site visit " }).data?.reason).toBe("Site visit");
+    expect(venuePublishSchema.safeParse({ pitches: [sel(A)] }).success).toBe(true);
+    expect(venuePublishSchema.safeParse({ pitches: [sel(A), sel(B)], reason: " Site visit " }).data?.reason).toBe(
+      "Site visit",
+    );
   });
 
   it.each([
-    ["no pitches", { pitchIds: [] }],
-    ["no pitchIds at all", {}],
-    ["a repeated pitch", { pitchIds: [A, A] }],
-    ["a non-uuid", { pitchIds: ["pitch-1"] }],
+    ["a pitch without its version", { pitches: [{ id: A }] }],
+    ["a malformed version", { pitches: [sel(A, '"1761091201000000"')] }],
+    ["a pitch with extra fields", { pitches: [{ ...sel(A), status: "published" }] }],
+    ["no pitches", { pitches: [] }],
+    ["no pitches field at all", {}],
+    ["a repeated pitch", { pitches: [sel(A), sel(A)] }],
+    ["a non-uuid", { pitches: [sel("pitch-1")] }],
     [
       "more than 50 pitches",
-      { pitchIds: Array.from({ length: 51 }, (_, i) => `5eed0000-0000-4000-8001-${String(i).padStart(12, "0")}`) },
+      { pitches: Array.from({ length: 51 }, (_, i) => sel(`5eed0000-0000-4000-8001-${String(i).padStart(12, "0")}`)) },
     ],
-    ["an unknown field", { pitchIds: [A], mediaIds: [B] }],
-    ["a blank reason", { pitchIds: [A], reason: "   " }],
-    ["a reason over 500 characters", { pitchIds: [A], reason: "x".repeat(501) }],
+    ["an unknown field", { pitches: [sel(A)], mediaIds: [B] }],
+    ["a blank reason", { pitches: [sel(A)], reason: "   " }],
+    ["a reason over 500 characters", { pitches: [sel(A)], reason: "x".repeat(501) }],
   ])("rejects %s", (_name, input) => {
     expect(venuePublishSchema.safeParse(input).success).toBe(false);
   });

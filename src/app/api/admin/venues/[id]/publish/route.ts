@@ -2,7 +2,7 @@ import { publishVenue, venuePublishSchema } from "@/features/venues/admin-publis
 
 import { transitionRoute } from "../../../_lib/transition-route";
 
-// POST /api/admin/venues/[id]/publish — publish the venue and the selected pitches. Body: { "pitchIds": [...], "reason"? }. Needs a verification (spec §5, PR 2.11).
+// POST /api/admin/venues/[id]/publish — publish the venue and the selected pitches. Body: { "pitches": [{ "id", "version" }], "reason"? }. Needs a verification (spec §5, PR 2.11).
 // Scope content:publish. Requires If-Match. Optional Idempotency-Key.
 
 export const POST = transitionRoute({

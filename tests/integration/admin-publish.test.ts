@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { POST as archivePitchRoute } from "@/app/api/admin/pitches/[id]/archive/route";
 import { POST as publishPitchRoute } from "@/app/api/admin/pitches/[id]/publish/route";
+import { PATCH as patchPitchRoute } from "@/app/api/admin/pitches/[id]/route";
 import { POST as unpublishPitchRoute } from "@/app/api/admin/pitches/[id]/unpublish/route";
 import { POST as archiveVenueRoute } from "@/app/api/admin/venues/[id]/archive/route";
 import { POST as createPitchRoute } from "@/app/api/admin/venues/[id]/pitches/route";
@@ -151,6 +152,16 @@ const pitchEtag = async (id: string) => {
   return `"${String(row?.v)}"`;
 };
 
+/** The publish body for `ids`, with each pitch's current version (what a publisher would have read). */
+async function selection(ids: string[]): Promise<{ pitches: { id: string; version: string }[] }> {
+  const rows = await operator<{ id: string; v: string }[]>`
+    select id::text, (extract(epoch from updated_at) * 1000000)::bigint::text as v
+    from public.pitches where id = any(${ids}::uuid[])
+  `;
+  const versions = new Map(rows.map((r) => [r.id, r.v]));
+  return { pitches: ids.map((id) => ({ id, version: versions.get(id) ?? "0" })) };
+}
+
 interface Publication {
   entity_type: string;
   entity_id: string;
@@ -189,7 +200,7 @@ describe("venue lifecycle (acceptance)", () => {
     expect((await publicDetail(slug("lifecycle"))).status).toBe(404);
 
     await ok(await verify(id), 201);
-    const published = await publishVenue(id, etag, { pitchIds: [p1], reason: "Site visit done" });
+    const published = await publishVenue(id, etag, { ...(await selection([p1])), reason: "Site visit done" });
     const after = await ok<VenueResult>(published);
     expect(after.venue.status).toBe("published");
     expect(Object.fromEntries(after.pitches.map((p) => [p.id, p.status]))).toEqual({
@@ -242,7 +253,7 @@ describe("venue lifecycle (acceptance)", () => {
 
     // Archiving is final through the API.
     const archivedEtag = `"${archived.venue.version}"`;
-    await fails(await publishVenue(id, archivedEtag, { pitchIds: [p1] }), 409, "conflict");
+    await fails(await publishVenue(id, archivedEtag, await selection([p1])), 409, "conflict");
     await fails(await unpublishVenue(id, archivedEtag), 409, "conflict");
     await fails(
       await patchVenueRoute(
@@ -258,7 +269,7 @@ describe("venue lifecycle (acceptance)", () => {
 describe("POST /api/admin/venues/[id]/publish", () => {
   it("requires a verification first, and changes nothing without one", async () => {
     const { id, etag, pitchIds } = await draftVenue("unverified", 1);
-    await fails(await publishVenue(id, etag, { pitchIds }), 409, "conflict");
+    await fails(await publishVenue(id, etag, await selection(pitchIds)), 409, "conflict");
     expect(await publications([id, ...pitchIds])).toEqual([]);
     expect((await searchSlugs()).has(slug("unverified"))).toBe(false);
   });
@@ -268,38 +279,63 @@ describe("POST /api/admin/venues/[id]/publish", () => {
     const other = await draftVenue("validate-other", 1);
     await ok(await verify(id), 201);
 
-    await fails(await publishVenue(id, etag, { pitchIds: [] }), 400, "invalid_request");
+    await fails(await publishVenue(id, etag, { pitches: [] }), 400, "invalid_request");
     await fails(await publishVenue(id, etag, {}), 400, "invalid_request");
-    await fails(await publishVenue(id, etag, { pitchIds: [pitchIds[0], pitchIds[0]] }), 400, "invalid_request");
-    await fails(await publishVenue(id, etag, { pitchIds: other.pitchIds }), 400, "invalid_request");
-    await fails(await publishVenue(id, '"1"', { pitchIds }), 409, "conflict");
     await fails(
-      await publishVenueRoute(req("POST", `/api/admin/venues/${id}/publish`, { pitchIds }), params({ id })),
+      await publishVenue(id, etag, await selection([String(pitchIds[0]), String(pitchIds[0])])),
       400,
       "invalid_request",
     );
-    await fails(await publishVenue(id, etag, { pitchIds }, {}, editorOnly), 403, "forbidden");
+    await fails(await publishVenue(id, etag, await selection(other.pitchIds)), 400, "invalid_request");
+    await fails(await publishVenue(id, '"1"', await selection(pitchIds)), 409, "conflict");
+    await fails(
+      await publishVenueRoute(
+        req("POST", `/api/admin/venues/${id}/publish`, await selection(pitchIds)),
+        params({ id }),
+      ),
+      400,
+      "invalid_request",
+    );
+    await fails(await publishVenue(id, etag, await selection(pitchIds), {}, editorOnly), 403, "forbidden");
     expect(await publications([id])).toEqual([]);
+  });
+
+  it("409s when a selected pitch changed after it was reviewed", async () => {
+    const { id, etag, pitchIds } = await draftVenue("stale-pitch", 1);
+    await ok(await verify(id), 201);
+    const reviewed = await selection(pitchIds);
+    const [pitchId] = pitchIds as [string];
+    // Someone edits the pitch after the publisher read it. The venue's own version doesn't move.
+    const edit = await patchPitchRoute(
+      req("PATCH", `/api/admin/pitches/${pitchId}`, { surface: "synthetic" }, { "if-match": await pitchEtag(pitchId) }),
+      params({ id: pitchId }),
+    );
+    await ok(edit);
+    await fails(await publishVenue(id, etag, reviewed), 409, "conflict");
+    expect(await publications([id, pitchId])).toEqual([]);
+    // Re-reading the pitch and publishing what was actually reviewed works.
+    await ok(await publishVenue(id, etag, await selection(pitchIds)));
   });
 
   it("409s when there's nothing left to publish, and replays a retried publish", async () => {
     const { id, etag, pitchIds } = await draftVenue("replay", 1);
     await ok(await verify(id), 201);
     const headers = { "idempotency-key": `pub-${run}-replay` };
-    const first = await publishVenue(id, etag, { pitchIds }, headers);
+    const body = await selection(pitchIds); // the same request both times
+    const first = await publishVenue(id, etag, body, headers);
     const firstBody = await ok<VenueResult>(first);
-    const retry = await publishVenue(id, etag, { pitchIds }, headers);
+    const retry = await publishVenue(id, etag, body, headers);
     expect(retry.headers.get("idempotent-replayed")).toBe("true");
     expect(await ok<VenueResult>(retry)).toEqual(firstBody);
     expect(await publications([id, ...pitchIds])).toHaveLength(2);
 
-    await fails(await publishVenue(id, String(first.headers.get("etag")), { pitchIds }), 409, "conflict");
+    await fails(await publishVenue(id, String(first.headers.get("etag")), await selection(pitchIds)), 409, "conflict");
   });
 
   it("locks the slug once published, even after unpublishing", async () => {
     const { id, etag, pitchIds } = await draftVenue("unpublish", 1);
     await ok(await verify(id), 201);
-    const published = await publishVenue(id, etag, { pitchIds });
+    const published = await publishVenue(id, etag, await selection(pitchIds));
     await ok(published);
 
     const unpublished = await unpublishVenue(id, String(published.headers.get("etag")));
@@ -327,7 +363,7 @@ describe("pitch transitions", () => {
     await fails(await publishPitch(p2, await pitchEtag(p2)), 409, "conflict");
 
     await ok(await verify(id), 201);
-    await ok(await publishVenue(id, etag, { pitchIds: [p1] }));
+    await ok(await publishVenue(id, etag, await selection([p1])));
     const res = await publishPitch(p2, await pitchEtag(p2));
     expect((await ok<{ pitch: AdminPitchDto }>(res)).pitch.status).toBe("published");
     expect(res.headers.get("etag")).toBe(await pitchEtag(p2));
@@ -348,6 +384,35 @@ describe("pitch transitions", () => {
       "published→archived",
     ]);
   });
+});
+
+describe("concurrent transitions", () => {
+  it("a pitch publish racing its venue's archive never deadlocks (Codex review)", async () => {
+    // Before the fix, the pitch publish locked pitch → venue and the archive venue → pitch, so the two
+    // could deadlock and one came back as a 500. Both now lock venue first.
+    // ~90 requests: give them their own credential so the per-credential limit (120/min) doesn't
+    // spill into the other tests in this file.
+    const shared = token;
+    ({ token } = await mint(["venues:write", "pitches:write", "content:publish"]));
+    const statuses: number[] = [];
+    try {
+      for (let i = 0; i < 8; i++) {
+        const { id, etag, pitchIds } = await draftVenue(`race-${String(i)}`);
+        const [p1, p2] = pitchIds as [string, string];
+        await ok(await verify(id), 201);
+        const published = await publishVenue(id, etag, await selection([p1]));
+        const venueEtag = String(published.headers.get("etag"));
+        const p2Etag = await pitchEtag(p2);
+        const [a, b] = await Promise.all([publishPitch(p2, p2Etag), archiveVenue(id, venueEtag)]);
+        statuses.push(a.status, b.status);
+      }
+    } finally {
+      token = shared;
+    }
+    expect(statuses.filter((status) => status !== 200 && status !== 409)).toEqual([]);
+    // ~90 sequential requests: allow for a slow runner instead of timing out mid-loop, which would
+    // let a venue be created after the file's cleanup has already run.
+  }, 30_000);
 });
 
 describe("POST /api/admin/venues/[id]/verifications", () => {
@@ -379,7 +444,7 @@ describe("POST /api/admin/venues/[id]/verifications", () => {
       "verified_on",
     ]);
 
-    await ok(await publishVenue(id, etag, { pitchIds }));
+    await ok(await publishVenue(id, etag, await selection(pitchIds)));
     const publicText = await (await publicDetail(slug("verify"))).text();
     const searchText = await (
       await searchRoute(new Request(`https://ff.test/api/venues?${SEARCH}`), params({}))

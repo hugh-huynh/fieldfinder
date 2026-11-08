@@ -22,13 +22,16 @@ import { hasVenueVerification } from "./admin-verification";
 
 const reason = z.string().trim().min(1).max(500).nullable().optional();
 
+// Each selected pitch carries the version the publisher reviewed (its `version` / ETag). A pitch
+// edit doesn't move the venue's version, so the venue's If-Match alone can't catch a pitch edited
+// after review (Codex review, PR 2.11).
 export const venuePublishSchema = z
   .object({
-    pitchIds: z
-      .array(z.uuid())
+    pitches: z
+      .array(z.object({ id: z.uuid(), version: z.string().regex(/^\d{1,20}$/) }).strict())
       .min(1)
       .max(50)
-      .refine((ids) => new Set(ids).size === ids.length, "must not repeat a pitch"),
+      .refine((pitches) => new Set(pitches.map((p) => p.id)).size === pitches.length, "must not repeat a pitch"),
     reason,
   })
   .strict();
@@ -107,11 +110,22 @@ export async function publishVenue(
 ): Promise<VenueTransitionResult> {
   const venue = await lockVenue(tx, id, ifMatch);
 
-  const selected = await tx<{ id: string; venue_id: string; status: PublicationStatus }[]>`
-    select id, venue_id, status from public.pitches where id = any(${input.pitchIds}::uuid[]) order by id for update
+  // Venue first (lockVenue), then the pitches in id order: the same order as every other
+  // transition, so overlapping ones queue rather than deadlock.
+  const ids = input.pitches.map((p) => p.id);
+  const selected = await tx<{ id: string; venue_id: string; status: PublicationStatus; version: string }[]>`
+    select id, venue_id, status, (extract(epoch from updated_at) * 1000000)::bigint::text as version
+    from public.pitches where id = any(${ids}::uuid[]) order by id for update
   `;
-  if (selected.length !== input.pitchIds.length || selected.some((p) => p.venue_id !== id)) {
-    throw new ApiError("invalid_request", "Every pitchId must be a pitch of this venue.");
+  if (selected.length !== ids.length || selected.some((p) => p.venue_id !== id)) {
+    throw new ApiError("invalid_request", "Every selected pitch must be a pitch of this venue.");
+  }
+  const reviewed = new Map(input.pitches.map((p) => [p.id, p.version]));
+  if (selected.some((p) => reviewed.get(p.id) !== p.version)) {
+    throw new ApiError(
+      "conflict",
+      "A selected pitch has changed since you read it. Fetch it again and retry with its new version.",
+    );
   }
   if (selected.some((p) => p.status === "archived")) {
     throw new ApiError("conflict", "Archived pitches can't be published.");
