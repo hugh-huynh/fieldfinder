@@ -9,7 +9,7 @@ import type { JsonValue, Tx } from "@/lib/db/types";
 
 export type Changes = Record<string, { from: unknown; to: unknown }>;
 
-export type RevisionEntity = "venue" | "pitch" | "venue_amenity" | "field_verification";
+export type RevisionEntity = "venue" | "pitch" | "venue_amenity" | "field_verification" | "media_asset";
 export type RevisionAction = "create" | "update";
 
 /** Fields of `next` that differ from `previous`. Absent (undefined) fields in `next` are unchanged. */

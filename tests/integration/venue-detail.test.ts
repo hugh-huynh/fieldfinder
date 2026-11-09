@@ -7,7 +7,9 @@ import { venueRouteTarget } from "@/features/venues/route-target";
 import type { ApiErrorBody } from "@/lib/api/errors";
 import { publicDb } from "@/lib/db/public";
 
+import { fixtureId } from "../fixtures/factory";
 import { fixtures, PRIVATE_SENTINEL } from "../fixtures/venues";
+import { LOCAL_MEDIA_PUBLIC_BASE_URL as MEDIA_BASE } from "../setup/integration-env";
 
 // GET /api/venues/[venueSlug] and /pitches/[pitchSlug] against the seeded local database, connected
 // as ff_public_reader exactly as the app is (PR 2.8). Slugs only, never ids. Run `pnpm db:reset` first.
@@ -85,7 +87,20 @@ describe("GET /api/venues/[venueSlug]", () => {
   it("returns a published venue with its published pitches and allowlisted fields only", async () => {
     const body = await ok<VenueDetailResponse>(await getVenue("wattlebird-reserve"));
 
-    expect(Object.keys(body).sort()).toEqual(["pitches", "venue"]);
+    expect(Object.keys(body).sort()).toEqual(["media", "pitches", "venue"]);
+    // Published venue image only: image 2 is a draft and has no public URL anywhere (PR 2.12).
+    expect(body.media).toEqual([
+      {
+        id: fixtureId("media", 1),
+        url: `${MEDIA_BASE}/fixtures/public/${fixtureId("media", 1)}.webp`,
+        contentType: "image/webp",
+        width: 1600,
+        height: 1067,
+        alt: "Entrance gates and car park",
+        displayOrder: 0,
+        attribution: null,
+      },
+    ]);
     expect(Object.keys(body.venue).sort()).toEqual(VENUE_KEYS);
     expect(body.venue).toMatchObject({
       id: venue(1).id,
@@ -127,6 +142,25 @@ describe("GET /api/venues/[venueSlug]", () => {
     expect(ironbark.pitches.map((p) => p.name)).toEqual(["Pitch A", "Pitch B", "Pitch C", "Pitch D"]);
   });
 
+  it("carries licence attribution with images that need it", async () => {
+    const body = await ok<VenueDetailResponse>(await getVenue("ironbark-park"));
+    expect(body.media.map((m) => m.id)).toEqual([fixtureId("media", 4), fixtureId("media", 5)]);
+    expect(body.media[1]?.attribution).toEqual({
+      text: "Photo: Example Photographer, CC BY 4.0",
+      author: "Example Photographer",
+      sourceUrl: "https://example.org/photos/goalmouth",
+      licenseName: "CC BY 4.0",
+      licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+    });
+    // Rights evidence pointers and private storage keys never leave the server. (Public URLs do
+    // contain "/storage/v1/", Supabase's path, so check the actual values.)
+    const text = JSON.stringify(body);
+    expect(text).not.toContain("fixtures/evidence/");
+    for (const index of [4, 5]) expect(text).not.toContain(`"fixtures/${String(index)}.webp"`);
+    expect(text).not.toContain("evidenceRef");
+    expect(text).not.toContain("storageKey");
+  });
+
   it("keeps unknown values null", async () => {
     const body = await ok<VenueDetailResponse>(await getVenue("paperbark-common"));
     expect(body.venue).toMatchObject({ access: null, streetAddress: null, postcode: null, amenities: {} });
@@ -155,7 +189,9 @@ describe("GET /api/venues/[venueSlug]/pitches/[pitchSlug]", () => {
   it("returns a published pitch with its venue's public details", async () => {
     const body = await ok<PitchDetailResponse>(await getPitch("wattlebird-reserve", "main-pitch"));
 
-    expect(Object.keys(body).sort()).toEqual(["pitch", "venue"]);
+    expect(Object.keys(body).sort()).toEqual(["media", "pitch", "venue", "venueMedia"]);
+    expect(body.media.map((m) => m.id)).toEqual([fixtureId("media", 3)]);
+    expect(body.venueMedia.map((m) => m.id)).toEqual([fixtureId("media", 1)]);
     expect(Object.keys(body.pitch).sort()).toEqual(PITCH_KEYS);
     expect(Object.keys(body.venue).sort()).toEqual(VENUE_KEYS);
     expect(body.pitch).toMatchObject({ slug: "main-pitch", venueId: venue(1).id, venueSlug: "wattlebird-reserve" });

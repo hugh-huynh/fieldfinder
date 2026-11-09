@@ -63,6 +63,11 @@ Rules enforced in application code instead: slug immutability after first publis
 - `admin_idempotency_keys (credential_id, idempotency_key, route, request_hash, response_*, expires_at)`: the first successful response to each `Idempotency-Key` per credential, kept for 24 hours (PR 2.10).
 - Nobody has privileges on the table. `admin_idempotency_begin()` claims a key or reports `replay` / `mismatch`; `admin_idempotency_finish()` stores the response. Both are `SECURITY DEFINER`, executable by `ff_admin_writer` only, and run inside the mutation's transaction: a failed mutation rolls its claim back, and a concurrent duplicate waits for the first to commit, then replays it.
 
+## Media storage (migration 0007)
+
+- Supabase Storage buckets `media-private` (private) and `media-public` (public), WebP only, 10 MiB cap. `media_assets.storage_key` points into the private bucket; `public_key` is set only while published and points into the public one (the 0002 CHECK enforces "public key iff published").
+- No `storage.objects` policies: the server reaches Storage through S3 access keys. Public reads of `media-public` use the public-bucket URL.
+
 ## Planned, not created (spec §4)
 
 These are documented so current choices don't block them. **Do not create them in the MVP.**

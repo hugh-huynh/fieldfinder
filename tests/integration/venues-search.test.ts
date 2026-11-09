@@ -5,7 +5,9 @@ import type { VenueSearchResponse } from "@/features/search/search";
 import type { ApiErrorBody } from "@/lib/api/errors";
 import { publicDb } from "@/lib/db/public";
 
+import { fixtureId } from "../fixtures/factory";
 import { fixtures, ORIGIN, PRIVATE_SENTINEL } from "../fixtures/venues";
+import { LOCAL_MEDIA_PUBLIC_BASE_URL as MEDIA_BASE } from "../setup/integration-env";
 
 // GET /api/venues against the seeded local database, connected as ff_public_reader exactly as the
 // app is (PR 2.7). Seed: tests/fixtures/venues.ts → supabase/seed.sql. Run `pnpm db:reset` first.
@@ -121,6 +123,7 @@ describe("GET /api/venues — results", () => {
         "distanceMeters",
         "href",
         "id",
+        "image",
         "location",
         "matchingPitchCount",
         "name",
@@ -132,6 +135,24 @@ describe("GET /api/venues — results", () => {
     }
     expect(text).not.toContain(PRIVATE_SENTINEL);
     expect(res.headers.get("cache-control")).toBe("public, max-age=0, s-maxage=60, stale-while-revalidate=300");
+  });
+});
+
+describe("GET /api/venues — images (PR 2.12)", () => {
+  it("gives each venue its first published image, or null, never a draft", async () => {
+    const body = await search(`${BASE}&radiusKm=50&limit=30`);
+    const bySlug = Object.fromEntries(body.items.map((item) => [item.slug, item.image]));
+    // Wattlebird: published venue image 1 (order 0); image 2 is a draft and must never appear.
+    expect(bySlug[slugOf(1)]).toMatchObject({
+      id: fixtureId("media", 1),
+      url: `${MEDIA_BASE}/fixtures/public/${fixtureId("media", 1)}.webp`,
+      alt: "Entrance gates and car park",
+      attribution: null,
+    });
+    // Saltbush has a venue image; Paperbark has no images at all.
+    expect(bySlug[slugOf(9)]).toMatchObject({ id: fixtureId("media", 7) });
+    expect(bySlug[slugOf(7)]).toBeNull();
+    expect(JSON.stringify(body)).not.toContain(fixtureId("media", 2));
   });
 });
 

@@ -2,7 +2,14 @@ import "server-only";
 
 import { z } from "zod";
 
-import { toAmenitiesDto, toVenueSummaryDto, type AmenitiesDto, type VenueSummaryDto } from "@/features/venues/dto";
+import { searchImages } from "@/features/media/public";
+import {
+  toAmenitiesDto,
+  toVenueSummaryDto,
+  type AmenitiesDto,
+  type MediaDto,
+  type VenueSummaryDto,
+} from "@/features/venues/dto";
 import { ApiError } from "@/lib/api/errors";
 import type { publicDb } from "@/lib/db/public";
 import { dbNumber } from "@/lib/db/row-types";
@@ -31,6 +38,8 @@ export const CANONICAL_REDIRECT_CACHE_CONTROL = "public, max-age=0, s-maxage=864
 export interface VenueSearchResultDto extends VenueSummaryDto {
   /** Confirmed venue amenities; a missing key means "not confirmed". */
   amenities: AmenitiesDto;
+  /** The venue's first published image, else one of its published pitches' (PR 2.12); null if none. */
+  image: MediaDto | null;
 }
 
 export interface VenueSearchResponse {
@@ -108,9 +117,10 @@ export async function searchVenues(sql: Sql, query: SearchQuery, secret: string)
     }),
   );
 
+  const images = await searchImages(sql, ids);
   const items = rows.map((row) => {
     const summary = toVenueSummaryDto(row);
-    return { ...summary, amenities: amenitiesById.get(summary.id) ?? {} };
+    return { ...summary, amenities: amenitiesById.get(summary.id) ?? {}, image: images.get(summary.id) ?? null };
   });
 
   // Step 4: if there might be more results, hand out a new bookmark pointing at this page's last venue.

@@ -79,10 +79,11 @@ jobs:
           cache: pnpm
       - if: steps.changes.outputs.run == 'true'
         run: pnpm install --frozen-lockfile
-      # Migrations and pgTAP only need Postgres, so the rest of the local stack is skipped.
+      # Postgres for migrations, pgTAP and integration tests, plus Storage (storage-api) and its gateway
+      # (kong) for the media tests' S3 and public-URL calls (PR 2.12). The rest of the stack is skipped.
       # `db:start` on a fresh runner already applies every migration and the seed, so no `db:reset`.
       - if: steps.changes.outputs.run == 'true'
-        run: pnpm db:start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+        run: pnpm db:start -x gotrue,realtime,imgproxy,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - if: steps.changes.outputs.run == 'true'
         run: pnpm test:db
       # API routes against the seeded database, connected as the app roles. The integration project's

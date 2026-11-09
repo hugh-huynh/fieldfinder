@@ -20,6 +20,12 @@ Inputs reviewed: `docs/specifications/FIELDFINDER_SPEC.md` v1.0, `docs/design/RE
   - A pitch can be published on its own only once its venue is published.
   - Archiving a venue archives all its pitches and is final through the API.
   - Media publishing moves to 2.12, together with the storage copy.
+- **Media (2026-11-08, PR 2.12):**
+  - `sharp` and `aws4fetch` added.
+  - Storage is reached through Supabase's S3 protocol with S3 access keys (Storage-only), never the secret or service-role key.
+  - Buckets are created by migration 0007.
+  - Published images appear on venue and pitch detail and as the search thumbnail.
+  - `PATCH /api/admin/media/[id]` was added so rights can be completed after upload, as 0002 allows.
 - **PR approvals (2026-10-12):** option A was chosen: Claude gets its own GitHub identity (recommended: a GitHub App installed only on this repo), so the human owner can review and approve Claude's PRs. Until that exists, merges rely on required checks plus the owner's merge.
 - **Future multi-site (2026-10-12):** other sports or sectors (e.g. nearest-product finders) may later launch as separate branded sites with separate databases. Phase 1 stays FieldFinder-only with `venues` / `pitches` naming; no platform abstraction is built now. Keep the search engine, UI shell and security plumbing free of soccer-specific assumptions where it costs nothing, so they can be extracted into shared packages when a second site starts.
 - **P4:** images have mixed rights. The licensing and evidence policy under P4 is **approved**.

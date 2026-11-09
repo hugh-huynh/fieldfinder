@@ -42,3 +42,53 @@ export function searchCursorSecret(source: Record<string, string | undefined> = 
   }
   return value;
 }
+
+/** Supabase Storage through its S3 protocol (PR 2.12): server-only, Storage-only credentials. */
+export interface StorageConfig {
+  /** e.g. https://<ref>.storage.supabase.co/storage/v1/s3, or http://127.0.0.1:54321/storage/v1/s3 locally. */
+  endpoint: string;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
+const STORAGE_VARS = {
+  endpoint: "SUPABASE_S3_ENDPOINT",
+  region: "SUPABASE_S3_REGION",
+  accessKeyId: "SUPABASE_S3_ACCESS_KEY_ID",
+  secretAccessKey: "SUPABASE_S3_SECRET_ACCESS_KEY",
+} as const;
+
+/** Storage credentials, validated. Errors name the variable, never its value. */
+export function storageConfig(source: Record<string, string | undefined> = process.env): StorageConfig {
+  const read = (key: keyof typeof STORAGE_VARS): string => {
+    const value = source[STORAGE_VARS[key]];
+    if (value === undefined || value.trim() === "") throw new Error(`${STORAGE_VARS[key]} is missing`);
+    return value.trim();
+  };
+  const endpoint = read("endpoint");
+  if (!/^https?:\/\//.test(endpoint) || !URL.canParse(endpoint)) {
+    throw new Error(`${STORAGE_VARS.endpoint} is not an http(s) URL`);
+  }
+  return {
+    endpoint: endpoint.replace(/\/+$/, ""),
+    region: read("region"),
+    accessKeyId: read("accessKeyId"),
+    secretAccessKey: read("secretAccessKey"),
+  };
+}
+
+export const MEDIA_PUBLIC_BASE_URL_VAR = "MEDIA_PUBLIC_BASE_URL";
+
+/**
+ * Base URL of the public media bucket (not secret), e.g.
+ * https://<ref>.supabase.co/storage/v1/object/public/media-public. Public image URLs are this plus
+ * the object's unguessable key.
+ */
+export function mediaPublicBaseUrl(source: Record<string, string | undefined> = process.env): string {
+  const value = source[MEDIA_PUBLIC_BASE_URL_VAR]?.trim();
+  if (value === undefined || !/^https?:\/\//.test(value) || !URL.canParse(value)) {
+    throw new Error(`${MEDIA_PUBLIC_BASE_URL_VAR} is missing or not an http(s) URL`);
+  }
+  return value.replace(/\/+$/, "");
+}
