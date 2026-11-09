@@ -5,12 +5,16 @@ import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { POST as publishMediaRoute } from "@/app/api/admin/media/[id]/publish/route";
-import { PATCH as patchMediaRoute } from "@/app/api/admin/media/[id]/route";
+import { GET as getMediaRoute, PATCH as patchMediaRoute } from "@/app/api/admin/media/[id]/route";
 import { POST as unpublishMediaRoute } from "@/app/api/admin/media/[id]/unpublish/route";
 import { POST as uploadRoute } from "@/app/api/admin/media/route";
+import { POST as archivePitchRoute } from "@/app/api/admin/pitches/[id]/archive/route";
+import { GET as getPitchRoute } from "@/app/api/admin/pitches/[id]/route";
 import { POST as archiveVenueRoute } from "@/app/api/admin/venues/[id]/archive/route";
 import { POST as createPitchRoute } from "@/app/api/admin/venues/[id]/pitches/route";
 import { POST as publishVenueRoute } from "@/app/api/admin/venues/[id]/publish/route";
+import { GET as getVenueRoute } from "@/app/api/admin/venues/[id]/route";
+import { POST as unpublishVenueRoute } from "@/app/api/admin/venues/[id]/unpublish/route";
 import { POST as verifyRoute } from "@/app/api/admin/venues/[id]/verifications/route";
 import { POST as createVenueRoute } from "@/app/api/admin/venues/route";
 import { GET as searchRoute } from "@/app/api/venues/route";
@@ -118,6 +122,9 @@ function upload(
   );
 }
 
+const authed = () => new Request("https://ff.test/", { headers: { authorization: `Bearer ${token}` } });
+const getMedia = (id: string) => getMediaRoute(authed(), params({ id }));
+const getVenueEtag = (id: string) => getVenueRoute(authed(), params({ id }));
 const patchMedia = (id: string, etag: string, body: unknown) =>
   patchMediaRoute(json("PATCH", `/api/admin/media/${id}`, body, { "if-match": etag }), params({ id }));
 const publishMedia = (id: string, etag: string) =>
@@ -391,5 +398,114 @@ describe("pitch images and idempotency", () => {
       { n: number }[]
     >`select count(*)::int as n from public.media_assets where pitch_id = ${venue.pitchId}::uuid`;
     expect(count?.n).toBe(1);
+  });
+});
+
+describe("archived and unpublished places keep their images, but the public URLs stop working (Hugh, 2026-11-09)", () => {
+  /** Uploads, completes rights and publishes an image; returns its id and public URL. */
+  async function publishedImage(owner: { venueId: string } | { pitchId: string }, alt: string) {
+    const fields =
+      "venueId" in owner
+        ? ({ venueId: owner.venueId, altText: alt } as Record<string, string>)
+        : ({ pitchId: owner.pitchId, altText: alt } as Record<string, string>);
+    const { media } = await ok<{ media: AdminMediaDto }>(
+      await upload(new Uint8Array(await jpegWithGps()), fields),
+      201,
+    );
+    const patched = await patchMedia(media.id, `"${media.version}"`, {
+      rightsBasis: "owned",
+      evidenceRef: EVIDENCE,
+      commercialUseOk: true,
+    });
+    await ok(patched);
+    const { media: live } = await ok<{ media: AdminMediaDto }>(
+      await publishMedia(media.id, String(patched.headers.get("etag"))),
+    );
+    expect((await fetch(String(live.publicUrl))).status).toBe(200);
+    return { id: media.id, url: String(live.publicUrl) };
+  }
+
+  async function expectWithdrawn(image: { id: string; url: string }, reason: string | null) {
+    expect((await fetch(image.url)).ok).toBe(false); // a saved URL no longer works
+    const row = await keys(image.id);
+    expect(row).toMatchObject({ status: "draft", public_key: null }); // the record is kept, as a draft
+    expect(await store.get(PRIVATE_BUCKET, String(row?.storage_key))).not.toBeNull(); // and the private original
+    const [last] = await operator<{ transition: string; reason: string | null }[]>`
+      select from_status || '→' || to_status as transition, reason from public.field_publications
+      where entity_type = 'media_asset' and entity_id = ${image.id}::uuid order by id desc limit 1
+    `;
+    expect(last).toEqual({ transition: "published→draft", reason });
+  }
+
+  const pitchEtag = async (pitchId: string) =>
+    String(
+      (
+        await getPitchRoute(
+          new Request("https://ff.test/", { headers: { authorization: `Bearer ${token}` } }),
+          params({ id: pitchId }),
+        )
+      ).headers.get("etag"),
+    );
+
+  it("archiving a venue withdraws its own images and its pitches'", async () => {
+    const venue = await publicVenueWithPitch("archive-keeps");
+    const venueImage = await publishedImage({ venueId: venue.id }, "Venue entrance");
+    const pitchImage = await publishedImage({ pitchId: venue.pitchId }, "Pitch 1");
+
+    const etag = (await ok<{ venue: AdminVenueDto }>(await getVenueEtag(venue.id))).venue.version;
+    await ok(
+      await archiveVenueRoute(
+        json(
+          "POST",
+          `/api/admin/venues/${venue.id}/archive`,
+          { reason: "Closed for good" },
+          { "if-match": `"${etag}"` },
+        ),
+        params({ id: venue.id }),
+      ),
+    );
+    await expectWithdrawn(venueImage, "Closed for good");
+    await expectWithdrawn(pitchImage, "Closed for good");
+  });
+
+  it("unpublishing a venue withdraws its images too; re-publishing an image gives a fresh URL", async () => {
+    const venue = await publicVenueWithPitch("unpublish-keeps");
+    const image = await publishedImage({ venueId: venue.id }, "Clubrooms");
+
+    const etag = (await ok<{ venue: AdminVenueDto }>(await getVenueEtag(venue.id))).venue.version;
+    await ok(
+      await unpublishVenueRoute(
+        json("POST", `/api/admin/venues/${venue.id}/unpublish`, undefined, { "if-match": `"${etag}"` }),
+        params({ id: venue.id }),
+      ),
+    );
+    await expectWithdrawn(image, null);
+
+    // Publishing the image again works and never reuses the old, possibly saved, URL.
+    const draft = await ok<{ media: AdminMediaDto }>(await getMedia(image.id));
+    const { media: again } = await ok<{ media: AdminMediaDto }>(
+      await publishMedia(image.id, `"${draft.media.version}"`),
+    );
+    expect(again.publicUrl).not.toBe(image.url);
+    expect((await fetch(image.url)).ok).toBe(false);
+    expect((await fetch(String(again.publicUrl))).status).toBe(200);
+  });
+
+  it("archiving a pitch withdraws only that pitch's images", async () => {
+    const venue = await publicVenueWithPitch("pitch-archive-keeps");
+    const venueImage = await publishedImage({ venueId: venue.id }, "Venue sign");
+    const pitchImage = await publishedImage({ pitchId: venue.pitchId }, "Pitch 1 goals");
+
+    await ok(
+      await archivePitchRoute(
+        json("POST", `/api/admin/pitches/${venue.pitchId}/archive`, undefined, {
+          "if-match": await pitchEtag(venue.pitchId),
+        }),
+        params({ id: venue.pitchId }),
+      ),
+    );
+    await expectWithdrawn(pitchImage, null);
+    expect((await fetch(venueImage.url)).status).toBe(200); // the venue's own image is untouched
+    expect((await keys(venueImage.id))?.status).toBe("published");
   });
 });

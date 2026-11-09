@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { withdrawPublishedMedia, type MediaDeps } from "@/features/media/admin-service";
 import type { AdminPitchDto } from "@/features/pitches/admin-dto";
 import { readAdminPitch } from "@/features/pitches/admin-service";
 import { ApiError } from "@/lib/api/errors";
@@ -151,11 +152,14 @@ export async function unpublishVenue(
   ifMatch: string,
   input: Transition,
   actor: Actor,
+  media: () => MediaDeps,
 ): Promise<VenueTransitionResult> {
   const venue = await lockVenue(tx, id, ifMatch);
   if (venue.status !== "published") throw new ApiError("conflict", "The venue isn't published.");
   // Its pitches keep their status: the public views hide every pitch of an unpublished venue.
   await setStatus(tx, "venue", id, "published", "draft", input.reason ?? null, actor);
+  // Its images (and its pitches') are kept but lose their public URLs (Hugh, 2026-11-09; spec §4).
+  await withdrawPublishedMedia(tx, { venueId: id }, input.reason ?? null, actor, media);
   return result(tx, id);
 }
 
@@ -165,6 +169,7 @@ export async function archiveVenue(
   ifMatch: string,
   input: Transition,
   actor: Actor,
+  media: () => MediaDeps,
 ): Promise<VenueTransitionResult> {
   const venue = await lockVenue(tx, id, ifMatch);
   const reasonText = input.reason ?? null;
@@ -173,5 +178,7 @@ export async function archiveVenue(
   `;
   await setStatus(tx, "venue", id, venue.status, "archived", reasonText, actor);
   for (const pitch of pitches) await setStatus(tx, "pitch", pitch.id, pitch.status, "archived", reasonText, actor);
+  // Images are kept (to reuse or flag later) but lose their public URLs.
+  await withdrawPublishedMedia(tx, { venueId: id }, reasonText, actor, media);
   return result(tx, id);
 }

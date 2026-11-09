@@ -314,3 +314,55 @@ export async function unpublishMedia(
   if (draft === null) throw new Error("unpublished media not found");
   return draft;
 }
+
+/**
+ * Withdraws every published image of a venue (its own and its pitches') or of one pitch, when that
+ * venue or pitch is unpublished or archived (Hugh, 2026-11-09: keep the images, kill the public URL;
+ * spec §4: no unpublished content via image URLs). Each image returns to draft, its public copy is
+ * deleted and a field_publications row is written; the record, rights and private original are kept,
+ * so it can be published again later (with a fresh URL).
+ *
+ * Call inside the transition's transaction, after the venue (and pitch) rows are locked: the lock
+ * order stays venue → pitch → media. Storage is only touched, and `deps` only built, when there's
+ * something to withdraw, so places without images never need storage configured.
+ */
+export async function withdrawPublishedMedia(
+  tx: Tx,
+  owner: { venueId: string } | { pitchId: string },
+  reason: string | null,
+  actor: Actor,
+  deps: () => MediaDeps,
+): Promise<number> {
+  const rows =
+    "venueId" in owner
+      ? await tx<{ id: string; public_key: string }[]>`
+          select id, public_key from public.media_assets
+          where status = 'published'
+            and (venue_id = ${owner.venueId}::uuid
+                 or pitch_id in (select id from public.pitches where venue_id = ${owner.venueId}::uuid))
+          order by id for update
+        `
+      : await tx<{ id: string; public_key: string }[]>`
+          select id, public_key from public.media_assets
+          where status = 'published' and pitch_id = ${owner.pitchId}::uuid
+          order by id for update
+        `;
+  if (rows.length === 0) return 0;
+
+  const { store } = deps();
+  for (const row of rows) {
+    await tx`update public.media_assets set status = 'draft', public_key = null where id = ${row.id}::uuid`;
+    await recordPublication(tx, {
+      entityType: "media_asset",
+      entityId: row.id,
+      from: "published",
+      to: "draft",
+      reason,
+      actor: actor.admin,
+      requestId: actor.requestId,
+    });
+    // Inside the transaction: if a delete fails, the whole transition rolls back.
+    await store.delete(PUBLIC_BUCKET, row.public_key);
+  }
+  return rows.length;
+}
