@@ -22,7 +22,11 @@
   - re-encoded to WebP, longest edge 2560 px, EXIF orientation applied, all metadata (EXIF, GPS, XMP, ICC) dropped.
 - **Publish** copies the private object to `media-public/p/<192-bit random>.webp` and sets `public_key`. **Unpublish** deletes that copy inside the transaction, so a failed delete rolls the unpublish back.
 - **Public responses** read only `public_media_v` through the `toMediaDto` allowlist: venue and pitch detail get a gallery, and search results get the first approved image.
-- **Residual risk (follow-up):** unpublishing or archiving a _venue or pitch_ hides its images from every public response, but doesn't yet delete their public copies. They stay reachable only by someone who already has the unguessable URL.
+- **Archived or unpublished places keep their images, but not their URLs** (Hugh, 2026-11-09).
+  - Unpublishing or archiving a venue withdraws its own published images and its pitches'. Unpublishing or archiving a pitch withdraws that pitch's images.
+  - Each image returns to draft, its public copy is deleted (so a saved URL stops working) and an audit row is written, in the same transaction as the status change.
+  - The record, rights and private original are kept, and re-publishing creates a fresh URL.
+- **Planned:** a way to flag such images as "unused" for review or reuse.
 
 ## Consequences
 
