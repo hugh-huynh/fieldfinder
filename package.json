@@ -28,6 +28,8 @@
     "db:reset": "supabase db reset --local",
     "seed:generate": "node scripts/generate-seed.ts",
     "admin:credential": "node scripts/admin-credential.ts",
+    "media:upload-fixtures": "node scripts/upload-fixture-images.ts",
+    "media:smoke": "node scripts/staging-media-smoke.ts",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
