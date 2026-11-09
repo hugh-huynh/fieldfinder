@@ -92,3 +92,18 @@ export function mediaPublicBaseUrl(source: Record<string, string | undefined> = 
   }
   return value.replace(/\/+$/, "");
 }
+
+export const MAPBOX_GEOCODING_TOKEN_VAR = "MAPBOX_GEOCODING_TOKEN";
+
+/**
+ * Server-only Mapbox token for the location suggester (PR 2.13, D6). It only needs geocoding access
+ * and is never sent to browsers (the client map token, M3, is a separate URL-restricted one).
+ * Throws without revealing the value.
+ */
+export function mapboxGeocodingToken(source: Record<string, string | undefined> = process.env): string {
+  const value = source[MAPBOX_GEOCODING_TOKEN_VAR]?.trim();
+  if (value === undefined || !/^[ps]k\.[A-Za-z0-9._-]{20,}$/.test(value)) {
+    throw new Error(`${MAPBOX_GEOCODING_TOKEN_VAR} is missing or doesn't look like a Mapbox token`);
+  }
+  return value;
+}
