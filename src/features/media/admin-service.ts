@@ -6,6 +6,7 @@ import type { Actor } from "@/features/venues/admin-service";
 import { ApiError } from "@/lib/api/errors";
 import { recordPublication } from "@/lib/audit/publications";
 import { diff, recordRevision } from "@/lib/audit/revisions";
+import { onRollback } from "@/lib/db/rollback";
 import type { Tx } from "@/lib/db/types";
 import type { ProcessedImage } from "@/lib/media/image";
 import { PRIVATE_BUCKET, PUBLIC_BUCKET, type MediaStore } from "@/lib/storage/types";
@@ -18,9 +19,10 @@ import { MEDIA_COLUMNS, type MediaPatch, type MediaUpload } from "./admin-schema
 // write (2.11 review), so overlapping requests queue rather than deadlock.
 //
 // Storage side effects are ordered so a public object never outlives its publication:
-//   * upload: the private object is written, then the row; if the transaction fails the object is
-//     deleted again;
-//   * publish: the public copy is written, then the row; if anything after the copy fails it's deleted;
+//   * upload: the private object is written, then the row; if the transaction doesn't commit, the
+//     object is deleted (onRollback, src/lib/db/rollback.ts);
+//   * publish: the public copy is written, then the row; if the transaction doesn't commit, at any
+//     step up to and including COMMIT, the copy is deleted (onRollback);
 //   * unpublish: the row is updated and the public copy deleted inside the transaction, so a failed
 //     delete rolls the unpublish back (still published, still consistent) instead of leaving a copy.
 
@@ -164,37 +166,34 @@ export async function createMedia(
 
   const storageKey = `u/${randomUUID()}.webp`;
   await deps.store.put(PRIVATE_BUCKET, storageKey, image.bytes, image.contentType);
-  try {
-    const values = {
-      venue_id: input.venueId ?? null,
-      pitch_id: input.pitchId ?? null,
-      storage_key: storageKey,
-      content_type: image.contentType,
-      width_px: image.width,
-      height_px: image.height,
-      byte_size: image.bytes.byteLength,
-      ...columnValues(input),
-    };
-    const [row] = await tx<{ id: string }[]>`insert into public.media_assets ${tx(values)} returning id`;
-    if (row === undefined) throw new Error("insert returned no row");
+  // If the transaction doesn't commit (now or at any later step), the private object goes too.
+  onRollback(tx, () => deps.store.delete(PRIVATE_BUCKET, storageKey));
+  const values = {
+    venue_id: input.venueId ?? null,
+    pitch_id: input.pitchId ?? null,
+    storage_key: storageKey,
+    content_type: image.contentType,
+    width_px: image.width,
+    height_px: image.height,
+    byte_size: image.bytes.byteLength,
+    ...columnValues(input),
+  };
+  const [row] = await tx<{ id: string }[]>`insert into public.media_assets ${tx(values)} returning id`;
+  if (row === undefined) throw new Error("insert returned no row");
 
-    // The audit row records what was stored, but never the private storage key.
-    const audited = Object.fromEntries(Object.entries(values).filter(([column]) => column !== "storage_key"));
-    await recordRevision(tx, {
-      entityType: "media_asset",
-      entityId: row.id,
-      action: "create",
-      changes: diff({}, { ...audited, status: "draft" }),
-      actor: actor.admin,
-      requestId: actor.requestId,
-    });
-    const media = await readAdminMedia(tx, row.id, deps);
-    if (media === null) throw new Error("created media not found");
-    return media;
-  } catch (error) {
-    await deps.store.delete(PRIVATE_BUCKET, storageKey).catch(() => undefined);
-    throw error;
-  }
+  // The audit row records what was stored, but never the private storage key.
+  const audited = Object.fromEntries(Object.entries(values).filter(([column]) => column !== "storage_key"));
+  await recordRevision(tx, {
+    entityType: "media_asset",
+    entityId: row.id,
+    action: "create",
+    changes: diff({}, { ...audited, status: "draft" }),
+    actor: actor.admin,
+    requestId: actor.requestId,
+  });
+  const media = await readAdminMedia(tx, row.id, deps);
+  if (media === null) throw new Error("created media not found");
+  return media;
 }
 
 export async function updateMedia(
@@ -265,26 +264,24 @@ export async function publishMedia(
   // 192 random bits: the public URL can't be guessed or enumerated.
   const publicKey = `p/${randomBytes(24).toString("base64url")}.webp`;
   await deps.store.put(PUBLIC_BUCKET, publicKey, bytes, media.contentType);
-  try {
-    await tx`
-      update public.media_assets set status = 'published', public_key = ${publicKey} where id = ${id}::uuid
-    `;
-    await recordPublication(tx, {
-      entityType: "media_asset",
-      entityId: id,
-      from: media.status,
-      to: "published",
-      reason,
-      actor: actor.admin,
-      requestId: actor.requestId,
-    });
-    const published = await readAdminMedia(tx, id, deps);
-    if (published === null) throw new Error("published media not found");
-    return published;
-  } catch (error) {
-    await deps.store.delete(PUBLIC_BUCKET, publicKey).catch(() => undefined);
-    throw error;
-  }
+  // If the transaction doesn't commit (a later statement, the idempotency save or the COMMIT itself),
+  // the public copy is deleted, so an image that stays a draft never has a working URL.
+  onRollback(tx, () => deps.store.delete(PUBLIC_BUCKET, publicKey));
+  await tx`
+    update public.media_assets set status = 'published', public_key = ${publicKey} where id = ${id}::uuid
+  `;
+  await recordPublication(tx, {
+    entityType: "media_asset",
+    entityId: id,
+    from: media.status,
+    to: "published",
+    reason,
+    actor: actor.admin,
+    requestId: actor.requestId,
+  });
+  const published = await readAdminMedia(tx, id, deps);
+  if (published === null) throw new Error("published media not found");
+  return published;
 }
 
 export async function unpublishMedia(

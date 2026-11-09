@@ -26,7 +26,10 @@ import type { AdminVenueDto } from "@/features/venues/admin-dto";
 import type { VenueDetailResponse } from "@/features/venues/detail";
 import type { ApiErrorBody } from "@/lib/api/errors";
 import { generateToken, hashToken } from "@/lib/auth/token";
+import { publishMedia as publishMediaService } from "@/features/media/admin-service";
 import { adminDb } from "@/lib/db/admin";
+import { withRollback } from "@/lib/db/rollback";
+import { mediaPublicBaseUrl } from "@/lib/env";
 import { publicDb } from "@/lib/db/public";
 import { storageConfig } from "@/lib/env";
 import { createS3MediaStore } from "@/lib/storage/s3";
@@ -145,6 +148,13 @@ async function searchItem(venueSlug: string) {
   );
   return body.items.find((item) => item.slug === venueSlug);
 }
+
+const credentialIdOf = async (t: string) => {
+  const [row] = await operator<
+    { id: string }[]
+  >`select id from public.admin_api_credentials where token_hash = ${hashToken(t)}`;
+  return String(row?.id);
+};
 
 const keys = (id: string) =>
   operator<{ storage_key: string; public_key: string | null; status: string }[]>`
@@ -507,5 +517,44 @@ describe("archived and unpublished places keep their images, but the public URLs
     await expectWithdrawn(pitchImage, null);
     expect((await fetch(venueImage.url)).status).toBe(200); // the venue's own image is untouched
     expect((await keys(venueImage.id))?.status).toBe("published");
+  });
+});
+
+describe("a publish whose transaction fails later never leaves a working public URL (Codex review on #44)", () => {
+  it("deletes the public copy when a step after the publish fails", async () => {
+    const venue = await publicVenueWithPitch("rollback");
+    const { media } = await ok<{ media: AdminMediaDto }>(
+      await upload(new Uint8Array(await jpegWithGps()), { venueId: venue.id, altText: "Rollback test" }),
+      201,
+    );
+    const patched = await patchMedia(media.id, `"${media.version}"`, {
+      rightsBasis: "owned",
+      evidenceRef: EVIDENCE,
+      commercialUseOk: true,
+    });
+    const { media: ready } = await ok<{ media: AdminMediaDto }>(patched);
+
+    // The same transaction runMutation uses: the publish succeeds, then a later step (here standing in
+    // for the idempotency save or the COMMIT) fails.
+    const base = mediaPublicBaseUrl();
+    let leakedUrl: string | null = null;
+    const actor = {
+      admin: { credentialId: await credentialIdOf(token), label: "rollback-test", scopes: [] },
+      requestId: randomUUID(),
+    };
+    const attempt = withRollback(adminDb(), async (tx) => {
+      const published = await publishMediaService(tx, media.id, ready.version, null, actor, {
+        store,
+        publicUrl: (key) => `${base}/${key}`,
+      });
+      leakedUrl = published.publicUrl;
+      expect((await fetch(String(leakedUrl))).status).toBe(200); // the copy really existed
+      throw new Error("simulated failure after publish");
+    });
+    await expect(attempt).rejects.toThrow("simulated failure after publish");
+
+    expect(leakedUrl).not.toBeNull();
+    expect((await fetch(String(leakedUrl))).ok).toBe(false); // the public copy was deleted
+    expect(await keys(media.id)).toMatchObject({ status: "draft", public_key: null }); // and the row rolled back
   });
 });

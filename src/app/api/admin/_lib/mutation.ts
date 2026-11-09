@@ -1,12 +1,15 @@
 import "server-only";
 
 import { idempotencyKey, requestHash, runIdempotent, toResponse, type MutationResult } from "@/lib/api/idempotency";
+import { withRollback } from "@/lib/db/rollback";
 import type { Tx } from "@/lib/db/types";
 
 import type { AdminContext } from "./admin-route";
 
 // Runs one admin mutation (PR 2.10): a single transaction holding the Idempotency-Key claim, the
-// change and its field_revisions rows, so either all of it lands or none of it does.
+// change and its field_revisions rows, so either all of it lands or none of it does. Storage side
+// effects register undos with onRollback (src/lib/db/rollback.ts); they run if anything here fails,
+// including saving the idempotency response or the COMMIT itself.
 
 export async function runMutation<Params>(
   request: Request,
@@ -16,7 +19,7 @@ export async function runMutation<Params>(
 ): Promise<Response> {
   const key = idempotencyKey(request);
   const path = new URL(request.url).pathname;
-  const result = await context.sql.begin((tx) =>
+  const result = await withRollback(context.sql, (tx) =>
     runIdempotent(
       tx,
       {
