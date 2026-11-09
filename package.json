@@ -28,14 +28,18 @@
     "db:reset": "supabase db reset --local",
     "seed:generate": "node scripts/generate-seed.ts",
     "admin:credential": "node scripts/admin-credential.ts",
+    "media:upload-fixtures": "node scripts/upload-fixture-images.ts",
+    "media:smoke": "node scripts/staging-media-smoke.ts",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
+    "aws4fetch": "1.0.20",
     "next": "16.4.5",
     "postgres": "3.4.9",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "server-only": "0.0.1",
+    "sharp": "0.35.5",
     "zod": "4.6.6"
   },
   "devDependencies": {

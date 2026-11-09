@@ -1,5 +1,6 @@
 import "server-only";
 
+import { withdrawPublishedMedia, type MediaDeps } from "@/features/media/admin-service";
 import type { Actor } from "@/features/venues/admin-service";
 import type { Transition } from "@/features/venues/admin-publish";
 import { ApiError } from "@/lib/api/errors";
@@ -70,15 +71,34 @@ export async function publishPitch(tx: Tx, id: string, ifMatch: string, input: T
   return transition(tx, pitch, "published", input, actor);
 }
 
-export async function unpublishPitch(tx: Tx, id: string, ifMatch: string, input: Transition, actor: Actor) {
+export async function unpublishPitch(
+  tx: Tx,
+  id: string,
+  ifMatch: string,
+  input: Transition,
+  actor: Actor,
+  media: () => MediaDeps,
+) {
   const { pitch } = await lockPitch(tx, id, ifMatch);
   if (pitch.status !== "published") throw new ApiError("conflict", "The pitch isn't published.");
   // If this was the venue's last published pitch, the venue drops out of public search and pages too
   // (public_venues_v needs ≥1 published pitch) until another is published.
-  return transition(tx, pitch, "draft", input, actor);
+  const updated = await transition(tx, pitch, "draft", input, actor);
+  // The pitch's own images are kept but lose their public URLs (Hugh, 2026-11-09; spec §4).
+  await withdrawPublishedMedia(tx, { pitchId: id }, input.reason ?? null, actor, media);
+  return updated;
 }
 
-export async function archivePitch(tx: Tx, id: string, ifMatch: string, input: Transition, actor: Actor) {
+export async function archivePitch(
+  tx: Tx,
+  id: string,
+  ifMatch: string,
+  input: Transition,
+  actor: Actor,
+  media: () => MediaDeps,
+) {
   const { pitch } = await lockPitch(tx, id, ifMatch);
-  return transition(tx, pitch, "archived", input, actor);
+  const updated = await transition(tx, pitch, "archived", input, actor);
+  await withdrawPublishedMedia(tx, { pitchId: id }, input.reason ?? null, actor, media);
+  return updated;
 }

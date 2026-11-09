@@ -1,3 +1,5 @@
 allowBuilds:
+  # sharp downloads its prebuilt libvips binary at install time (PR 2.12, approved by Hugh).
+  sharp: true
   msw: false
   unrs-resolver: false

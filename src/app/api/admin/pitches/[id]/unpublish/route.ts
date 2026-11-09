@@ -1,6 +1,7 @@
 import { unpublishPitch } from "@/features/pitches/admin-publish";
 import { transitionSchema } from "@/features/venues/admin-publish";
 
+import { mediaDeps } from "../../../_lib/media";
 import { transitionRoute } from "../../../_lib/transition-route";
 
 // POST /api/admin/pitches/[id]/unpublish — take the pitch back to draft (spec §5, PR 2.11).
@@ -10,6 +11,8 @@ export const POST = transitionRoute({
   name: "admin.pitches.unpublish",
   schema: transitionSchema,
   optionalBody: true,
-  run: async (tx, id, ifMatch, input, actor) => ({ pitch: await unpublishPitch(tx, id, ifMatch, input, actor) }),
+  run: async (tx, id, ifMatch, input, actor) => ({
+    pitch: await unpublishPitch(tx, id, ifMatch, input, actor, mediaDeps),
+  }),
   version: (result) => result.pitch.version,
 });

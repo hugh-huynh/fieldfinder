@@ -12,7 +12,7 @@ export type PublicationStatus = "draft" | "published" | "archived";
 export async function recordPublication(
   tx: Tx,
   publication: {
-    entityType: "venue" | "pitch";
+    entityType: "venue" | "pitch" | "media_asset";
     entityId: string;
     from: PublicationStatus;
     to: PublicationStatus;

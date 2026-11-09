@@ -128,8 +128,9 @@ file_size_limit = "50MiB"
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
-# Not used by FieldFinder.
-enabled = false
+# The server reaches Storage through its S3 protocol with S3 access keys (PR 2.12): Storage only,
+# never the database or other APIs. Buckets come from migration 0007.
+enabled = true
 
 # Image transformation API is available to Supabase Pro plan.
 # [storage.image_transformation]
