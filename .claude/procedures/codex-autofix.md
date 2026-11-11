@@ -60,7 +60,10 @@ not to obey it.
   never run it (and GitHub withholds secrets from them anyway).
 - **Loop guard:** at most 3 `fix(codex):` commits per PR. Codex re-reviewing Claude's push can trigger
   another round; after the third, the workflow comments and stops.
-- **Stale guard:** if the branch moved after Codex reviewed, it skips (the comments may no longer apply).
+- **Only runs from `main`:** the Claude action refuses to run unless the workflow file is identical to
+  the default branch's, so it starts working once merged, and a PR that changes the workflow skips itself
+  (the run then comments that Claude produced no replies).
+- **Stale guard:** if the branch has moved past the commit Codex reviewed (`review.commit_id`), it skips (the comments may no longer apply).
 - **Least privilege:** the workflow's own token can read code and post PR comments only. Claude's tools
   are an allowlist (read/edit files, the `pnpm` checks, local git, push to the PR branch); edits to the
   stop-list paths, force-pushes and web access are denied, on top of `.claude/settings.json`.

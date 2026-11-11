@@ -41,10 +41,14 @@ jobs:
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
+      # Lets `gh pr comment` work in steps that run before (or without) a checkout (Codex, PR #50).
+      GH_REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number }}
       REVIEW_ID: ${{ github.event.review.id }}
       HEAD_REF: ${{ github.event.pull_request.head.ref }}
-      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      # The commit Codex reviewed. Not pull_request.head.sha: a push during the review moves the head,
+      # and the review would then describe older code (Codex, PR #50).
+      REVIEWED_SHA: ${{ github.event.review.commit_id }}
     steps:
       - name: Collect the review's comments
         id: collect
@@ -78,9 +82,9 @@ jobs:
         id: fresh
         if: steps.collect.outputs.count != '0' && fromJSON(steps.collect.outputs.rounds) < fromJSON(env.MAX_ROUNDS)
         run: |
-          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+          if [ "$(git rev-parse HEAD)" != "$REVIEWED_SHA" ]; then
             echo "ok=false" >> "$GITHUB_OUTPUT"
-            gh pr comment "$PR" --body "Codex autofix: skipped. The branch has new commits since Codex reviewed \`${HEAD_SHA:0:7}\`; ask Codex to review again."
+            gh pr comment "$PR" --body "Codex autofix: skipped. The branch has new commits since Codex reviewed \`${REVIEWED_SHA:0:7}\`; ask Codex to review again."
           else
             echo "ok=true" >> "$GITHUB_OUTPUT"
             mkdir -p .codex-fix && cp "$RUNNER_TEMP/codex/comments.json" .codex-fix/comments.json
@@ -138,8 +142,14 @@ jobs:
         run: |
           set -euo pipefail
           replies=.codex-fix/replies.json
-          if [ "$OUTCOME" != "success" ] || ! jq -e 'type == "array"' "$replies" >/dev/null 2>&1; then
-            gh pr comment "$PR" --body "Codex autofix didn't finish (outcome: $OUTCOME). Nothing was replied; see [the run]($RUN_URL)."
+          if [ "$OUTCOME" != "success" ]; then
+            gh pr comment "$PR" --body "Codex autofix failed (Claude step: $OUTCOME). Nothing was replied; see [the run]($RUN_URL)."
+            exit 0
+          fi
+          # The action also "succeeds" when it skips itself, e.g. on the PR that changes this workflow
+          # (it only runs a workflow identical to the default branch's) or with no auth secret.
+          if ! jq -e 'type == "array"' "$replies" >/dev/null 2>&1; then
+            gh pr comment "$PR" --body "Codex autofix: Claude produced no replies (it may have been skipped, e.g. because this PR changes the workflow). Nothing was replied; see [the run]($RUN_URL)."
             exit 0
           fi
           # Only reply to comments of this review, once each, with bounded text.
