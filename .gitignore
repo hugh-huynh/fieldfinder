@@ -40,3 +40,6 @@ pnpm-debug.log*
 .DS_Store
 *.pem
 .idea/
+
+# codex-autofix workflow scratch (comments in, replies out)
+.codex-fix/
