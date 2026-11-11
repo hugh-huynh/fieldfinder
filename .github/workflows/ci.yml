@@ -31,7 +31,15 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test:coverage
+      # A fake, obviously non-secret sentinel planted as the server-only Mapbox token: if any client
+      # code read it, the scan below finds it in .next/static (PR 2.13 acceptance).
       - run: pnpm build
+        env:
+          MAPBOX_GEOCODING_TOKEN: pk.ci-bundle-sentinel-not-a-real-token
+      - name: No server secrets in the client bundle
+        run: pnpm check:client-bundle
+        env:
+          MAPBOX_GEOCODING_TOKEN: pk.ci-bundle-sentinel-not-a-real-token
       - name: Coverage summary
         if: always()
         run: |
