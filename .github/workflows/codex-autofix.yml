@@ -139,11 +139,20 @@ jobs:
         env:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOME: ${{ steps.claude.outcome }}
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: |
           set -euo pipefail
           replies=.codex-fix/replies.json
           if [ "$OUTCOME" != "success" ]; then
-            gh pr comment "$PR" --body "Codex autofix failed (Claude step: $OUTCOME). Nothing was replied; see [the run]($RUN_URL)."
+            # Only the final result's one-line message (e.g. an API or auth error), never the session:
+            # the action keeps full output out of the public logs on purpose.
+            reason="(no result message)"
+            if [ -n "${EXECUTION_FILE:-}" ] && [ -f "$EXECUTION_FILE" ]; then
+              reason=$(jq -r '[.[]? | select(.type == "result")] | last | .result // "(no result message)"' \
+                "$EXECUTION_FILE" 2>/dev/null | tr '\n\r`' '   ' | cut -c1-300) || reason="(unreadable result)"
+            fi
+            echo "Claude step $OUTCOME: $reason"
+            gh pr comment "$PR" --body "Codex autofix failed (Claude step: $OUTCOME). Claude said: \`$reason\`. Nothing was replied; see [the run]($RUN_URL)."
             exit 0
           fi
           # The action also "succeeds" when it skips itself, e.g. on the PR that changes this workflow
