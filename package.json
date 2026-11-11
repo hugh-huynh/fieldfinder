@@ -31,6 +31,7 @@
     "media:upload-fixtures": "node scripts/upload-fixture-images.ts",
     "media:smoke": "node scripts/staging-media-smoke.ts",
     "check:client-bundle": "node scripts/check-client-bundle.ts",
+    "openapi:generate": "OPENAPI_WRITE=1 vitest run --project unit src/lib/openapi/document.test.ts",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
+    "@asteasolutions/zod-to-openapi": "9.1.0",
     "@axe-core/playwright": "4.14.0",
     "@eslint/js": "9.39.5",
     "@playwright/test": "1.64.1",
