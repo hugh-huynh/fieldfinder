@@ -97,7 +97,7 @@ curl -s "${H[@]}" "$FF/api/admin/pitches/$PITCH_ID"
 
 Note the venue's `ETag` and each pitch's `version` **from this review**. Publishing with them guarantees you publish exactly what you reviewed: if anything changed since, publishing is a 409.
 
-**5. Publish** (`content:publish`) the venue with the pitches that are ready. Pitches you leave out stay drafts.
+**5. Publish** (`content:publish`) the venue with the pitches that are ready. Draft pitches you leave out stay drafts; a pitch that is already published stays published whether or not you list it (see [Take something down](#take-something-down)).
 
 ```sh
 curl -s "${H[@]}" -X POST "$FF/api/admin/venues/$VENUE_ID/publish" -H 'Content-Type: application/json' \
@@ -161,15 +161,17 @@ Publish images after their venue is live. A published image's URL works as soon 
 
 ## Take something down
 
-All three need `content:publish` and the record's ETag in `If-Match`. Add a `reason` for the audit log.
+All of these need `content:publish` and the record's ETag in `If-Match`. Add a `reason` for the audit log.
 
-| Action                                   | Effect                                                                                                                                                                | Undo?                        |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `POST /api/admin/venues/{id}/unpublish`  | Venue and all its pitches go back to draft and disappear from search and pages. Their images' public copies are deleted.                                              | Yes: publish again           |
-| `POST /api/admin/pitches/{id}/unpublish` | The pitch goes back to draft; its images' public copies are deleted. If it was the venue's last published pitch, the venue disappears too until another is published. | Yes: publish again           |
-| `POST /api/admin/media/{id}/unpublish`   | The public copy is deleted, so the old URL stops working. The image becomes a draft.                                                                                  | Yes: publish again (new URL) |
-| `POST /api/admin/venues/{id}/archive`    | Archives the venue and all its pitches, and withdraws their images.                                                                                                   | **No, final**                |
-| `POST /api/admin/pitches/{id}/archive`   | Archives the pitch and withdraws its images.                                                                                                                          | **No, final**                |
+| Action                                   | Effect                                                                                                                                                                                                  | Undo?                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `POST /api/admin/venues/{id}/unpublish`  | Only the venue goes back to draft; it and all its pitches disappear from search and pages. The pitches keep their own status (see below). The public copies of its and its pitches' images are deleted. | Yes: publish again           |
+| `POST /api/admin/pitches/{id}/unpublish` | The pitch goes back to draft; its images' public copies are deleted. If it was the venue's last published pitch, the venue disappears too until another is published.                                   | Yes: publish again           |
+| `POST /api/admin/media/{id}/unpublish`   | The public copy is deleted, so the old URL stops working. The image becomes a draft.                                                                                                                    | Yes: publish again (new URL) |
+| `POST /api/admin/venues/{id}/archive`    | Archives the venue and all its pitches, and withdraws their images.                                                                                                                                     | **No, final**                |
+| `POST /api/admin/pitches/{id}/archive`   | Archives the pitch and withdraws its images.                                                                                                                                                            | **No, final**                |
+
+**Republishing a venue brings back the pitches that were published before**, even if the publish request doesn't list them: unpublishing the venue hides its pitches but doesn't change their status. To keep a pitch hidden after the venue returns, unpublish (or archive) that pitch before republishing the venue. Images don't come back on their own: they stay drafts until you publish each one again.
 
 There's no delete (spec §5): records are kept for the audit trail. Prefer unpublish unless the place is gone for good.
 

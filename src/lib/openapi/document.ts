@@ -540,7 +540,7 @@ export function buildOpenApiDocument() {
     transition(
       "/api/admin/venues/{id}/unpublish",
       "Unpublish a venue",
-      "Back to draft with all its pitches; their public image copies are deleted.",
+      "Only the venue goes back to draft. Its pitches keep their status but are hidden while the venue isn't published; pitches that were published become public again when the venue is republished, even if the publish request doesn't list them (unpublish those pitches first to keep them hidden). The public copies of the venue's and its pitches' images are deleted, and the images stay drafts until published again.",
       "venue",
     ),
   );

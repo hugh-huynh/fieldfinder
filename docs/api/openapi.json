@@ -1376,7 +1376,7 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{1,3}$",
-              "default": 10,
+              "default": "10",
               "description": "Whole kilometres, 1 to 50."
             },
             "required": false,
@@ -1453,7 +1453,7 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{1,3}$",
-              "default": 20,
+              "default": "20",
               "description": "Results per page, 1 to 30."
             },
             "required": false,
@@ -2733,7 +2733,7 @@
       "post": {
         "operationId": "venue.unpublish",
         "summary": "Unpublish a venue",
-        "description": "Back to draft with all its pitches; their public image copies are deleted.\n\nScope: `content:publish`.",
+        "description": "Only the venue goes back to draft. Its pitches keep their status but are hidden while the venue isn't published; pitches that were published become public again when the venue is republished, even if the publish request doesn't list them (unpublish those pitches first to keep them hidden). The public copies of the venue's and its pitches' images are deleted, and the images stay drafts until published again.\n\nScope: `content:publish`.",
         "tags": [
           "Admin"
         ],

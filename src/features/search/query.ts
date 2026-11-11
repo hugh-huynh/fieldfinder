@@ -75,7 +75,11 @@ export const searchQuerySchema = z
     radiusKm: integer
       .pipe(z.number().int().min(MIN_RADIUS_KM).max(MAX_RADIUS_KM))
       .default(DEFAULT_RADIUS_KM)
-      .meta({ description: `Whole kilometres, ${String(MIN_RADIUS_KM)} to ${String(MAX_RADIUS_KM)}.` }),
+      // The default applies after the string → number transform; document it as the string a client sends.
+      .meta({
+        description: `Whole kilometres, ${String(MIN_RADIUS_KM)} to ${String(MAX_RADIUS_KM)}.`,
+        default: String(DEFAULT_RADIUS_KM),
+      }),
     surface: z.enum(SURFACES).optional(),
     pitchSize: z.enum(PITCH_FORMATS).optional(),
     lighting: z.enum(["yes", "no"]).optional().meta({ description: "Floodlights." }),
@@ -94,7 +98,7 @@ export const searchQuerySchema = z
     limit: integer
       .pipe(z.number().int().min(1).max(MAX_LIMIT))
       .default(DEFAULT_LIMIT)
-      .meta({ description: `Results per page, 1 to ${String(MAX_LIMIT)}.` }),
+      .meta({ description: `Results per page, 1 to ${String(MAX_LIMIT)}.`, default: String(DEFAULT_LIMIT) }),
     cursor: z
       .string()
       .min(1)

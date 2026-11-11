@@ -35,6 +35,53 @@ function implementedOperations(): string[] {
   });
 }
 
+type JsonSchema = Record<string, unknown>;
+
+/** Does `value` satisfy the schema's own type, enum, pattern and bounds? (Enough for defaults.) */
+function satisfies(schema: JsonSchema, value: unknown): boolean {
+  const types = ([] as unknown[]).concat(schema.type ?? []);
+  const typeOf = (v: unknown) =>
+    v === null ? "null" : Array.isArray(v) ? "array" : Number.isInteger(v) ? "integer" : typeof v;
+  if (types.length > 0) {
+    const actual = typeOf(value);
+    if (!types.includes(actual) && !(actual === "integer" && types.includes("number"))) return false;
+  }
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
+  if (typeof value === "string") {
+    if (typeof schema.pattern === "string" && !new RegExp(schema.pattern, "u").test(value)) return false;
+    if (typeof schema.minLength === "number" && value.length < schema.minLength) return false;
+    if (typeof schema.maxLength === "number" && value.length > schema.maxLength) return false;
+  }
+  if (typeof value === "number") {
+    if (typeof schema.minimum === "number" && value < schema.minimum) return false;
+    if (typeof schema.maximum === "number" && value > schema.maximum) return false;
+  }
+  return true;
+}
+
+/** Every schema in the document that has a `default`, and those whose default breaks it. */
+function defaultsViolatingSchema(root: unknown): { checked: number; violations: string[] } {
+  const violations: string[] = [];
+  let checked = 0;
+  const walk = (node: unknown, where: string) => {
+    if (node === null || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      node.forEach((child, i) => {
+        walk(child, `${where}[${String(i)}]`);
+      });
+      return;
+    }
+    const schema = node as JsonSchema;
+    if ("default" in schema && ("type" in schema || "enum" in schema)) {
+      checked += 1;
+      if (!satisfies(schema, schema.default)) violations.push(`${where}: ${JSON.stringify(schema.default)}`);
+    }
+    for (const [key, child] of Object.entries(schema)) walk(child, `${where}/${key}`);
+  };
+  walk(root, "#");
+  return { checked, violations };
+}
+
 function documentedOperations(): string[] {
   return Object.entries(document.paths ?? {}).flatMap(([path, item]) =>
     METHODS.filter((method) => method.toLowerCase() in item).map((method) => `${method} ${path}`),
@@ -56,6 +103,17 @@ describe("OpenAPI document", () => {
     expect(refs.length).toBeGreaterThan(0);
     const components = document.components as Record<string, Record<string, unknown> | undefined>;
     for (const [ref, kind = "", name = ""] of refs) expect(components[kind]?.[name], ref).toBeDefined();
+  });
+
+  it("documents every default in the type its schema declares (Codex, PR #49)", () => {
+    const problems = defaultsViolatingSchema(document);
+    expect(problems.checked).toBeGreaterThan(0);
+    expect(problems.violations).toEqual([]);
+  });
+
+  it("the defaults check catches a numeric default on a string parameter", () => {
+    const broken = { paths: { "/x": { get: { parameters: [{ schema: { type: "string", default: 10 } }] } } } };
+    expect(defaultsViolatingSchema(broken).violations).toHaveLength(1);
   });
 
   it("gives every operation a unique operationId", () => {
