@@ -186,6 +186,12 @@ Conventions:
 
 **M2 risks:** keyset pagination on a computed distance (needs a stable sort on `(distance_m, id)`), Supavisor transaction-pooling limits (prepared statements must be off), getting sharp to work on Vercel, and Upstash latency.
 **M2 exit evidence:** a CI run with integration logs, OpenAPI file, a curl transcript against the preview showing 401/403/404/429, and a DTO key snapshot.
+**M2 evidence (2026-11-13):**
+
+- CI run with integration logs: PR #57's `database` job (11 files, incl. `tests/integration/security/`).
+- OpenAPI file: [`docs/api/openapi.json`](../api/openapi.json) (PR #49).
+- Transcript: [`evidence/m2-security-transcript.txt`](evidence/m2-security-transcript.txt) from `pnpm security:smoke` against preview `fieldfinder-7l94i46cc` (the code now on `main`): 200 search, identical 404s for a draft and a missing venue, 401, 403, and 429 with `Retry-After` after 10 failed logins.
+- DTO key snapshot: `tests/integration/security/__snapshots__/public-dto-keys.test.ts.snap` (PR #57).
 
 ### M3 — Public UI
 

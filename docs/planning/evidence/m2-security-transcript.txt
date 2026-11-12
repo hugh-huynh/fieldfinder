@@ -1,0 +1,47 @@
+FieldFinder security smoke against https://fieldfinder-7l94i46cc-hugh16.vercel.app at 2026-11-12T23:43:48.969Z
+
+$ GET /api/venues?lat=-37.814&lng=144.963&radiusKm=50   (Authorization: none)
+  HTTP 200   Cache-Control: public, max-age=0
+  {"totalCount":10}
+$ GET /api/venues/hidden-draft-park   (Authorization: none)
+  HTTP 404   Cache-Control: no-store
+  {"code":"not_found","message":"Not found.","requestId":"0a442a2d-54ea-4867-b5a9-6f929c6c20d5"}
+$ GET /api/venues/no-such-venue-anywhere   (Authorization: none)
+  HTTP 404   Cache-Control: no-store
+  {"code":"not_found","message":"Not found.","requestId":"da8a2020-f1ca-4b5e-94e8-6288ddaa4d2d"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"69407f23-9ac1-4d99-a3ed-85bd144ae5a4"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: Bearer <redacted>)
+  HTTP 403   Cache-Control: no-store
+  {"code":"forbidden","message":"This credential doesn't have the required scope.","requestId":"d564b26d-bbf8-436d-89db-dccee57dc1ac"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"4cb674d8-447c-4d5f-a7e1-cb648db2d7f7"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"82ea0d12-aec2-419b-a2fb-2a0de01f2fbc"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"3710f01b-9c3c-470d-9f15-52ee63c2f19a"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"afd49bbd-3d86-41c2-b1fd-d5dd1cfa3903"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"d2996a7c-ae75-48d6-8d91-85d2ec06091c"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"f585e9fd-24a9-49ec-a1e4-8c162f5e8ff9"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"d9d360d1-9ae4-4da4-9899-f65536f8a4e4"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"df6e9475-8fdc-4330-acad-5f7bb6a8e4ba"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 401   Cache-Control: no-store
+  {"code":"unauthenticated","message":"Authentication is required.","requestId":"fa83400d-8c20-4c8e-8440-cb01e0ccebfd"}
+$ GET /api/admin/venues/5eed0000-0000-4000-8000-0000ffffffff   (Authorization: none)
+  HTTP 429   Retry-After: 11   Cache-Control: no-store
+  {"code":"rate_limited","message":"Too many requests. Try again later.","requestId":"10188a63-290c-47d9-a7a2-9f7000a4ae19"}

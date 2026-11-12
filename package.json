@@ -30,6 +30,7 @@
     "admin:credential": "node scripts/admin-credential.ts",
     "media:upload-fixtures": "node scripts/upload-fixture-images.ts",
     "media:smoke": "node scripts/staging-media-smoke.ts",
+    "security:smoke": "node scripts/security-smoke.ts",
     "check:client-bundle": "node scripts/check-client-bundle.ts",
     "openapi:generate": "OPENAPI_WRITE=1 vitest run --project unit src/lib/openapi/document.test.ts",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
