@@ -67,14 +67,22 @@ const coordinate = (min: number, max: number) =>
     .refine((value) => value >= min && value <= max)
     .transform(round);
 
-const schema = z
+/** The raw query parameters, before normalisation. Exported for the OpenAPI document (PR 2.14). */
+export const searchQuerySchema = z
   .object({
-    lat: coordinate(-90, 90),
-    lng: coordinate(-180, 180),
-    radiusKm: integer.pipe(z.number().int().min(MIN_RADIUS_KM).max(MAX_RADIUS_KM)).default(DEFAULT_RADIUS_KM),
+    lat: coordinate(-90, 90).meta({ description: "Search centre latitude, -90 to 90.", example: "-37.814" }),
+    lng: coordinate(-180, 180).meta({ description: "Search centre longitude, -180 to 180.", example: "144.963" }),
+    radiusKm: integer
+      .pipe(z.number().int().min(MIN_RADIUS_KM).max(MAX_RADIUS_KM))
+      .default(DEFAULT_RADIUS_KM)
+      // The default applies after the string → number transform; document it as the string a client sends.
+      .meta({
+        description: `Whole kilometres, ${String(MIN_RADIUS_KM)} to ${String(MAX_RADIUS_KM)}.`,
+        default: String(DEFAULT_RADIUS_KM),
+      }),
     surface: z.enum(SURFACES).optional(),
     pitchSize: z.enum(PITCH_FORMATS).optional(),
-    lighting: z.enum(["yes", "no"]).optional(),
+    lighting: z.enum(["yes", "no"]).optional().meta({ description: "Floodlights." }),
     access: z.enum(ACCESS_CLASSES).optional(),
     // Comma-separated, e.g. "toilets,parking". Order and duplicates don't matter.
     amenities: z
@@ -82,14 +90,22 @@ const schema = z
       .max(200)
       .transform((value) => value.split(","))
       .pipe(z.array(z.enum(AMENITY_KEYS)).min(1))
-      .optional(),
-    limit: integer.pipe(z.number().int().min(1).max(MAX_LIMIT)).default(DEFAULT_LIMIT),
+      .optional()
+      .meta({
+        description: `Comma-separated, all required: ${AMENITY_KEYS.join(", ")}.`,
+        example: "toilets,parking",
+      }),
+    limit: integer
+      .pipe(z.number().int().min(1).max(MAX_LIMIT))
+      .default(DEFAULT_LIMIT)
+      .meta({ description: `Results per page, 1 to ${String(MAX_LIMIT)}.`, default: String(DEFAULT_LIMIT) }),
     cursor: z
       .string()
       .min(1)
       .max(MAX_CURSOR_LENGTH)
       .regex(/^[A-Za-z0-9_.-]+$/)
-      .optional(),
+      .optional()
+      .meta({ description: "`nextCursor` from the previous page. Only valid with the same filters." }),
   })
   .strict();
 
@@ -106,7 +122,7 @@ export function parseSearchQuery(params: URLSearchParams): QueryParseResult {
     raw[key] = value;
   }
 
-  const result = schema.safeParse(raw);
+  const result = searchQuerySchema.safeParse(raw);
   if (!result.success || repeated.size > 0) {
     const fields = new Set(repeated);
     for (const issue of result.success ? [] : result.error.issues) {

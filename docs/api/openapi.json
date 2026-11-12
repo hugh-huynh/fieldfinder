@@ -1,0 +1,4599 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FieldFinder API",
+    "version": "1.0.0",
+    "description": "Public read-only search over published soccer venues and pitches, plus the admin API used to curate them. Errors are always `{ code, message, requestId }`. See docs/api/README.md."
+  },
+  "servers": [
+    {
+      "url": "https://fieldfinder.example",
+      "description": "Placeholder; use your deployment's origin."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Public",
+      "description": "No authentication. Rate limited per IP at the edge."
+    },
+    {
+      "name": "Admin",
+      "description": "Bearer token with the listed scope. Rate limited per token and per IP."
+    }
+  ],
+  "components": {
+    "responses": {
+      "InvalidRequest": {
+        "description": "Invalid request: a parameter, header or body field failed validation.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "invalid_request",
+              "message": "The request is invalid.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "Unauthenticated": {
+        "description": "Missing, malformed, expired or revoked admin token.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "unauthenticated",
+              "message": "Authentication is required.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The token is valid but lacks the scope this route needs, or the client IP isn't on its allowlist.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "forbidden",
+              "message": "You don't have access to this resource.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not found. Public routes also say this for anything that isn't published.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "not_found",
+              "message": "Not found.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "If-Match is stale, or the change isn't allowed in the record's current state.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "conflict",
+              "message": "The resource was changed by another request.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "IdempotencyMismatch": {
+        "description": "This Idempotency-Key was already used with a different request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "idempotency_mismatch",
+              "message": "This Idempotency-Key was already used for a different request.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many requests. Wait for Retry-After seconds, when given.",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait. Sent by the admin limiter; the edge limiter may omit it.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "rate_limited",
+              "message": "Too many requests. Try again later.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "Internal": {
+        "description": "Unexpected server error. Quote the requestId.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "internal",
+              "message": "Something went wrong. Please try again.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "A dependency (database, storage or Mapbox) isn't available. Retry later.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "unavailable",
+              "message": "The service is temporarily unavailable.",
+              "requestId": "0b7e7c38-4d1f-4a8e-9b52-2f1d3c4e5a6b"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "adminToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An `ffadm_…` token minted with `pnpm admin:credential mint` (ADR-0003). Header only: a token in the query string is rejected."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid_request",
+              "unauthenticated",
+              "forbidden",
+              "not_found",
+              "conflict",
+              "idempotency_mismatch",
+              "rate_limited",
+              "internal",
+              "unavailable"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "Safe to show to anyone. Never a stack trace or field value."
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Also in the X-Request-Id header. Quote it when reporting a problem."
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "requestId"
+        ]
+      },
+      "VenueSearchResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueSearchResult"
+            }
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Venues matching the search across all pages."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor` for the next page. Null on the last page."
+          }
+        },
+        "required": [
+          "items",
+          "totalCount",
+          "nextCursor"
+        ]
+      },
+      "VenueSearchResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "suburb": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "latitude": {
+                "type": "number"
+              },
+              "longitude": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "latitude",
+              "longitude"
+            ],
+            "description": "The venue's public location, never the searcher's."
+          },
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "public",
+              "booking_required",
+              "members_only",
+              null
+            ]
+          },
+          "distanceMeters": {
+            "type": "integer",
+            "description": "From the rounded search centre."
+          },
+          "publishedPitchCount": {
+            "type": "integer"
+          },
+          "matchingPitchCount": {
+            "type": "integer",
+            "description": "Pitches that match every pitch filter on their own."
+          },
+          "href": {
+            "type": "string",
+            "description": "Page to open: the pitch page when the venue has one published pitch, else the venue page.",
+            "example": "/venues/wattlebird-reserve"
+          },
+          "amenities": {
+            "$ref": "#/components/schemas/Amenities"
+          },
+          "image": {
+            "$ref": "#/components/schemas/Media"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "suburb",
+          "state",
+          "location",
+          "access",
+          "distanceMeters",
+          "publishedPitchCount",
+          "matchingPitchCount",
+          "href",
+          "amenities",
+          "image"
+        ]
+      },
+      "Amenities": {
+        "type": "object",
+        "properties": {
+          "parking": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no"
+            ]
+          },
+          "toilets": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no"
+            ]
+          },
+          "changing_rooms": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no"
+            ]
+          },
+          "drinking_water": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no"
+            ]
+          },
+          "cafe": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no"
+            ]
+          },
+          "public_transport": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no"
+            ]
+          }
+        },
+        "description": "Confirmed amenities only. A missing key means \"not confirmed\", never \"no\"."
+      },
+      "Media": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "description": "Public image URL. Stops working once the image is unpublished."
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/webp",
+              "image/avif"
+            ]
+          },
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "displayOrder": {
+            "type": "integer"
+          },
+          "attribution": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "author": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sourceUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "licenseName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "licenseUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "text",
+              "author",
+              "sourceUrl",
+              "licenseName",
+              "licenseUrl"
+            ],
+            "description": "Show it wherever the image is shown. Null for images FieldFinder owns."
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "contentType",
+          "width",
+          "height",
+          "alt",
+          "displayOrder",
+          "attribution"
+        ]
+      },
+      "VenueDetailResponse": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "$ref": "#/components/schemas/VenueDetail"
+          },
+          "pitches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Pitch"
+            }
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          }
+        },
+        "required": [
+          "venue",
+          "pitches",
+          "media"
+        ]
+      },
+      "VenueDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "streetAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suburb": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "postcode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "latitude": {
+                "type": "number"
+              },
+              "longitude": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "latitude",
+              "longitude"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "public",
+              "booking_required",
+              "members_only",
+              null
+            ]
+          },
+          "publishedPitchCount": {
+            "type": "integer"
+          },
+          "amenities": {
+            "$ref": "#/components/schemas/Amenities"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "streetAddress",
+          "suburb",
+          "state",
+          "postcode",
+          "location",
+          "description",
+          "access",
+          "publishedPitchCount",
+          "amenities",
+          "updatedAt"
+        ]
+      },
+      "Pitch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueSlug": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "surface": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "grass",
+              "synthetic",
+              "hybrid",
+              null
+            ]
+          },
+          "pitchFormat": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "full",
+              "small_sided",
+              "training",
+              null
+            ]
+          },
+          "lengthMeters": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "widthMeters": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "floodlights": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "public",
+              "booking_required",
+              "members_only",
+              null
+            ],
+            "description": "The pitch's own rule. Null means it uses the venue's."
+          },
+          "effectiveAccess": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "public",
+              "booking_required",
+              "members_only",
+              null
+            ],
+            "description": "The rule that applies: the pitch's, else the venue's."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "venueId",
+          "venueSlug",
+          "slug",
+          "name",
+          "surface",
+          "pitchFormat",
+          "lengthMeters",
+          "widthMeters",
+          "floodlights",
+          "access",
+          "effectiveAccess",
+          "updatedAt"
+        ],
+        "description": "Null attributes are \"not confirmed\"."
+      },
+      "PitchDetailResponse": {
+        "type": "object",
+        "properties": {
+          "pitch": {
+            "$ref": "#/components/schemas/Pitch"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/VenueDetail"
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          },
+          "venueMedia": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Media"
+            }
+          }
+        },
+        "required": [
+          "pitch",
+          "venue",
+          "media",
+          "venueMedia"
+        ]
+      },
+      "SuggestResponse": {
+        "type": "object",
+        "properties": {
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocationSuggestion"
+            },
+            "maxItems": 5
+          }
+        },
+        "required": [
+          "suggestions"
+        ]
+      },
+      "LocationSuggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "postcode",
+              "place",
+              "locality",
+              "neighborhood",
+              "address"
+            ]
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Rounded to 3 decimal places."
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Rounded to 3 decimal places."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "label",
+          "type",
+          "latitude",
+          "longitude"
+        ]
+      },
+      "AdminVenueResponse": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "$ref": "#/components/schemas/AdminVenue"
+          }
+        },
+        "required": [
+          "venue"
+        ]
+      },
+      "AdminVenue": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "streetAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suburb": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ACT",
+              "NSW",
+              "NT",
+              "QLD",
+              "SA",
+              "TAS",
+              "VIC",
+              "WA"
+            ]
+          },
+          "postcode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "public",
+              "booking_required",
+              "members_only",
+              null
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          },
+          "amenities": {
+            "type": "object",
+            "properties": {
+              "parking": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
+              },
+              "toilets": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
+              },
+              "changing_rooms": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
+              },
+              "drinking_water": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
+              },
+              "cafe": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
+              },
+              "public_transport": {
+                "type": "string",
+                "enum": [
+                  "yes",
+                  "no",
+                  "unknown"
+                ]
+              }
+            },
+            "description": "Every amenity; one never recorded is \"unknown\"."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "updated_at in microseconds. Also the ETag; send it back as If-Match.",
+            "example": "1761987000000000"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "streetAddress",
+          "suburb",
+          "state",
+          "postcode",
+          "latitude",
+          "longitude",
+          "description",
+          "access",
+          "status",
+          "amenities",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "AdminVerificationResponse": {
+        "type": "object",
+        "properties": {
+          "verification": {
+            "$ref": "#/components/schemas/AdminVerification"
+          }
+        },
+        "required": [
+          "verification"
+        ]
+      },
+      "AdminVerification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "verifiedBy": {
+            "type": "string"
+          },
+          "verifiedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "evidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "internalNotes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "venueId",
+          "sourceId",
+          "verifiedBy",
+          "verifiedOn",
+          "confidence",
+          "evidence",
+          "internalNotes",
+          "createdAt"
+        ]
+      },
+      "VenueTransitionResponse": {
+        "type": "object",
+        "properties": {
+          "venue": {
+            "$ref": "#/components/schemas/AdminVenue"
+          },
+          "pitches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminPitch"
+            },
+            "description": "All of the venue's pitches after the change."
+          }
+        },
+        "required": [
+          "venue",
+          "pitches"
+        ]
+      },
+      "AdminPitch": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "surface": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "grass",
+              "synthetic",
+              "hybrid",
+              null
+            ]
+          },
+          "pitchFormat": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "full",
+              "small_sided",
+              "training",
+              null
+            ]
+          },
+          "lengthMeters": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "widthMeters": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "floodlights": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "public",
+              "booking_required",
+              "members_only",
+              null
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "updated_at in microseconds. Also the ETag; send it back as If-Match.",
+            "example": "1761987000000000"
+          }
+        },
+        "required": [
+          "id",
+          "venueId",
+          "slug",
+          "name",
+          "surface",
+          "pitchFormat",
+          "lengthMeters",
+          "widthMeters",
+          "floodlights",
+          "access",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      },
+      "AdminPitchResponse": {
+        "type": "object",
+        "properties": {
+          "pitch": {
+            "$ref": "#/components/schemas/AdminPitch"
+          }
+        },
+        "required": [
+          "pitch"
+        ]
+      },
+      "AdminMediaResponse": {
+        "type": "object",
+        "properties": {
+          "media": {
+            "$ref": "#/components/schemas/AdminMedia"
+          }
+        },
+        "required": [
+          "media"
+        ]
+      },
+      "AdminMedia": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venueId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "pitchId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "image/webp",
+              "image/avif"
+            ]
+          },
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "byteSize": {
+            "type": "integer"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "displayOrder": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ]
+          },
+          "publicUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set only while published."
+          },
+          "rights": {
+            "type": "object",
+            "properties": {
+              "basis": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "owned",
+                  "licensed",
+                  "cc0_public_domain",
+                  "cc_by",
+                  "cc_by_sa",
+                  "written_permission",
+                  null
+                ]
+              },
+              "author": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sourceUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "licenseName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "licenseUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "attributionText": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "evidenceRef": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "commercialUseOk": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "basis",
+              "author",
+              "sourceUrl",
+              "licenseName",
+              "licenseUrl",
+              "attributionText",
+              "evidenceRef",
+              "commercialUseOk"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-11-01T09:30:00.000Z"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d{1,20}$",
+            "description": "updated_at in microseconds. Also the ETag; send it back as If-Match.",
+            "example": "1761987000000000"
+          }
+        },
+        "required": [
+          "id",
+          "venueId",
+          "pitchId",
+          "contentType",
+          "width",
+          "height",
+          "byteSize",
+          "alt",
+          "displayOrder",
+          "status",
+          "publicUrl",
+          "rights",
+          "createdAt",
+          "updatedAt",
+          "version"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/api/venues": {
+      "get": {
+        "operationId": "venues.search",
+        "tags": [
+          "Public"
+        ],
+        "summary": "Search venues near a point",
+        "description": "Published venues within `radiusKm` of (`lat`, `lng`), nearest first. Pitch filters (`surface`, `pitchSize`, `lighting`, `access`) must all be met by the same pitch. Coordinates are rounded to 3 decimal places. Unknown or repeated parameters are a 400. Any non-canonical spelling of a valid query (parameter order, default values, extra digits) gets a 308 to the canonical URL; clients should request that form directly.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d{1,3}(\\.\\d{1,12})?$",
+              "description": "Search centre latitude, -90 to 90.",
+              "example": "-37.814"
+            },
+            "required": true,
+            "description": "Search centre latitude, -90 to 90.",
+            "name": "lat",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d{1,3}(\\.\\d{1,12})?$",
+              "description": "Search centre longitude, -180 to 180.",
+              "example": "144.963"
+            },
+            "required": true,
+            "description": "Search centre longitude, -180 to 180.",
+            "name": "lng",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,3}$",
+              "default": "10",
+              "description": "Whole kilometres, 1 to 50."
+            },
+            "required": false,
+            "description": "Whole kilometres, 1 to 50.",
+            "name": "radiusKm",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "grass",
+                "synthetic",
+                "hybrid"
+              ]
+            },
+            "required": false,
+            "name": "surface",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "full",
+                "small_sided",
+                "training"
+              ]
+            },
+            "required": false,
+            "name": "pitchSize",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "yes",
+                "no"
+              ],
+              "description": "Floodlights."
+            },
+            "required": false,
+            "description": "Floodlights.",
+            "name": "lighting",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "public",
+                "booking_required",
+                "members_only"
+              ]
+            },
+            "required": false,
+            "name": "access",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "description": "Comma-separated, all required: parking, toilets, changing_rooms, drinking_water, cafe, public_transport.",
+              "example": "toilets,parking"
+            },
+            "required": false,
+            "description": "Comma-separated, all required: parking, toilets, changing_rooms, drinking_water, cafe, public_transport.",
+            "name": "amenities",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,3}$",
+              "default": "20",
+              "description": "Results per page, 1 to 30."
+            },
+            "required": false,
+            "description": "Results per page, 1 to 30.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "description": "`nextCursor` from the previous page. Only valid with the same filters."
+            },
+            "required": false,
+            "description": "`nextCursor` from the previous page. Only valid with the same filters.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of results. Cached at the edge for 60 s.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "id": "5eed0000-0000-4000-8000-000000000001",
+                      "slug": "wattlebird-reserve",
+                      "name": "Wattlebird Reserve",
+                      "suburb": "Brunswick",
+                      "state": "VIC",
+                      "location": {
+                        "latitude": -37.767,
+                        "longitude": 144.96
+                      },
+                      "access": "public",
+                      "distanceMeters": 5236,
+                      "publishedPitchCount": 2,
+                      "matchingPitchCount": 1,
+                      "href": "/venues/wattlebird-reserve",
+                      "amenities": {
+                        "parking": "yes",
+                        "toilets": "yes",
+                        "cafe": "no"
+                      },
+                      "image": {
+                        "id": "5eed0000-0000-4000-8000-0000000000a1",
+                        "url": "https://media.fieldfinder.example/storage/v1/object/public/media-public/Zm9vYmFyYmF6cXV4.webp",
+                        "contentType": "image/webp",
+                        "width": 1600,
+                        "height": 1067,
+                        "alt": "Main pitch at Wattlebird Reserve, looking north",
+                        "displayOrder": 0,
+                        "attribution": null
+                      }
+                    }
+                  ],
+                  "totalCount": 1,
+                  "nextCursor": null
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VenueSearchResponse"
+                }
+              }
+            }
+          },
+          "308": {
+            "description": "Redirect to the canonical form of the same query.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "example": "/api/venues?lat=-37.814&lng=144.963"
+                },
+                "required": true
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/venues/{venueSlug}": {
+      "get": {
+        "operationId": "venues.detail",
+        "tags": [
+          "Public"
+        ],
+        "summary": "A published venue with its published pitches and images",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "wattlebird-reserve"
+            },
+            "required": true,
+            "name": "venueSlug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The venue. Cached at the edge for 60 s.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "venue": {
+                    "id": "5eed0000-0000-4000-8000-000000000001",
+                    "slug": "wattlebird-reserve",
+                    "name": "Wattlebird Reserve",
+                    "streetAddress": "1 Example Road",
+                    "suburb": "Brunswick",
+                    "state": "VIC",
+                    "postcode": "3056",
+                    "location": {
+                      "latitude": -37.767,
+                      "longitude": 144.96
+                    },
+                    "description": null,
+                    "access": "public",
+                    "publishedPitchCount": 2,
+                    "amenities": {
+                      "parking": "yes",
+                      "toilets": "yes",
+                      "cafe": "no"
+                    },
+                    "updatedAt": "2026-11-01T09:30:00.000Z"
+                  },
+                  "pitches": [
+                    {
+                      "id": "5eed0000-0000-4000-8000-000000000101",
+                      "venueId": "5eed0000-0000-4000-8000-000000000001",
+                      "venueSlug": "wattlebird-reserve",
+                      "slug": "north-pitch",
+                      "name": "North Pitch",
+                      "surface": "grass",
+                      "pitchFormat": "full",
+                      "lengthMeters": 100,
+                      "widthMeters": 64,
+                      "floodlights": null,
+                      "access": null,
+                      "effectiveAccess": "public",
+                      "updatedAt": "2026-11-01T09:30:00.000Z"
+                    }
+                  ],
+                  "media": [
+                    {
+                      "id": "5eed0000-0000-4000-8000-0000000000a1",
+                      "url": "https://media.fieldfinder.example/storage/v1/object/public/media-public/Zm9vYmFyYmF6cXV4.webp",
+                      "contentType": "image/webp",
+                      "width": 1600,
+                      "height": 1067,
+                      "alt": "Main pitch at Wattlebird Reserve, looking north",
+                      "displayOrder": 0,
+                      "attribution": null
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/VenueDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/venues/{venueSlug}/pitches/{pitchSlug}": {
+      "get": {
+        "operationId": "pitches.detail",
+        "tags": [
+          "Public"
+        ],
+        "summary": "A published pitch with its venue's public details",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "wattlebird-reserve"
+            },
+            "required": true,
+            "name": "venueSlug",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "example": "north-pitch"
+            },
+            "required": true,
+            "name": "pitchSlug",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pitch. Cached at the edge for 60 s.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "pitch": {
+                    "id": "5eed0000-0000-4000-8000-000000000101",
+                    "venueId": "5eed0000-0000-4000-8000-000000000001",
+                    "venueSlug": "wattlebird-reserve",
+                    "slug": "north-pitch",
+                    "name": "North Pitch",
+                    "surface": "grass",
+                    "pitchFormat": "full",
+                    "lengthMeters": 100,
+                    "widthMeters": 64,
+                    "floodlights": null,
+                    "access": null,
+                    "effectiveAccess": "public",
+                    "updatedAt": "2026-11-01T09:30:00.000Z"
+                  },
+                  "venue": {
+                    "id": "5eed0000-0000-4000-8000-000000000001",
+                    "slug": "wattlebird-reserve",
+                    "name": "Wattlebird Reserve",
+                    "streetAddress": "1 Example Road",
+                    "suburb": "Brunswick",
+                    "state": "VIC",
+                    "postcode": "3056",
+                    "location": {
+                      "latitude": -37.767,
+                      "longitude": 144.96
+                    },
+                    "description": null,
+                    "access": "public",
+                    "publishedPitchCount": 2,
+                    "amenities": {
+                      "parking": "yes",
+                      "toilets": "yes",
+                      "cafe": "no"
+                    },
+                    "updatedAt": "2026-11-01T09:30:00.000Z"
+                  },
+                  "media": [],
+                  "venueMedia": [
+                    {
+                      "id": "5eed0000-0000-4000-8000-0000000000a1",
+                      "url": "https://media.fieldfinder.example/storage/v1/object/public/media-public/Zm9vYmFyYmF6cXV4.webp",
+                      "contentType": "image/webp",
+                      "width": 1600,
+                      "height": 1067,
+                      "alt": "Main pitch at Wattlebird Reserve, looking north",
+                      "displayOrder": 0,
+                      "attribution": null
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PitchDetailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/locations/suggest": {
+      "get": {
+        "operationId": "locations.suggest",
+        "tags": [
+          "Public"
+        ],
+        "summary": "Place and address suggestions for the search box",
+        "description": "Up to 5 Australian suggestions, biased towards Melbourne (Mapbox Geocoding). Never cached. Pass a suggestion's coordinates to `GET /api/venues`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Suggestions; possibly none.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "suggestions": [
+                    {
+                      "id": "dXJuOm1ieHBsYzpFeGFtcGxl",
+                      "name": "Brunswick",
+                      "label": "Brunswick, Victoria 3056, Australia",
+                      "type": "locality",
+                      "latitude": -37.767,
+                      "longitude": 144.96
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/admin/venues": {
+      "post": {
+        "operationId": "admin.venues.create",
+        "summary": "Create a draft venue",
+        "description": "JSON body, at most 64 KB. Omitted optional fields are \"not confirmed\".\n\nScope: `venues:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "slug": "wattlebird-reserve",
+                "name": "Wattlebird Reserve",
+                "suburb": "Brunswick",
+                "state": "VIC",
+                "latitude": -37.7671,
+                "longitude": 144.9602,
+                "amenities": {
+                  "parking": "yes",
+                  "toilets": "yes"
+                }
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "streetAddress": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "suburb": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "ACT",
+                      "NSW",
+                      "NT",
+                      "QLD",
+                      "SA",
+                      "TAS",
+                      "VIC",
+                      "WA"
+                    ]
+                  },
+                  "postcode": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[0-9]{4}$"
+                  },
+                  "latitude": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "access": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "public",
+                      "booking_required",
+                      "members_only",
+                      null
+                    ]
+                  },
+                  "amenities": {
+                    "type": "object",
+                    "properties": {
+                      "parking": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "toilets": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "changing_rooms": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "drinking_water": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "cafe": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "public_transport": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "slug",
+                  "name",
+                  "suburb",
+                  "state",
+                  "latitude",
+                  "longitude"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created as a draft.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "required": true
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "example": {
+                  "venue": {
+                    "id": "5eed0000-0000-4000-8000-000000000001",
+                    "slug": "wattlebird-reserve",
+                    "name": "Wattlebird Reserve",
+                    "streetAddress": "1 Example Road",
+                    "suburb": "Brunswick",
+                    "state": "VIC",
+                    "postcode": "3056",
+                    "latitude": -37.7671,
+                    "longitude": 144.9602,
+                    "description": null,
+                    "access": "public",
+                    "status": "draft",
+                    "amenities": {
+                      "parking": "yes",
+                      "toilets": "yes",
+                      "changing_rooms": "unknown",
+                      "drinking_water": "unknown",
+                      "cafe": "no",
+                      "public_transport": "unknown"
+                    },
+                    "createdAt": "2026-11-01T09:30:00.000Z",
+                    "updatedAt": "2026-11-01T09:30:00.000Z",
+                    "version": "1761989400000000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVenueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/venues/{id}": {
+      "get": {
+        "operationId": "admin.venues.read",
+        "summary": "Read a venue in any status",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Scope: `venues:write`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The venue.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVenueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "admin.venues.update",
+        "summary": "Update a venue",
+        "description": "Absent fields are unchanged; null clears an optional field (\"not confirmed\"). `amenities` merges: each key given is set.\n\nScope: `venues:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "postcode": "3056",
+                "amenities": {
+                  "cafe": "no"
+                }
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "streetAddress": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "suburb": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "ACT",
+                      "NSW",
+                      "NT",
+                      "QLD",
+                      "SA",
+                      "TAS",
+                      "VIC",
+                      "WA"
+                    ]
+                  },
+                  "postcode": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "pattern": "^[0-9]{4}$"
+                  },
+                  "latitude": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  },
+                  "description": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "access": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "public",
+                      "booking_required",
+                      "members_only",
+                      null
+                    ]
+                  },
+                  "amenities": {
+                    "type": "object",
+                    "properties": {
+                      "parking": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "toilets": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "changing_rooms": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "drinking_water": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "cafe": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "public_transport": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVenueResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/venues/{id}/verifications": {
+      "post": {
+        "operationId": "admin.venues.verify",
+        "summary": "Record a verification of a venue's details",
+        "description": "A venue needs at least one before it can be published. Verifications are internal; no public route returns them.\n\nScope: `venues:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "verifiedBy": "Field team",
+                "verifiedOn": "2026-11-01",
+                "confidence": "high",
+                "evidence": "Site visit, photos in the team drive"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "verifiedBy": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "verifiedOn": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "evidence": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "internalNotes": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 5000
+                  },
+                  "sourceId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "verifiedBy",
+                  "verifiedOn",
+                  "confidence"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded.",
+            "headers": {
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVerificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/venues/{id}/publish": {
+      "post": {
+        "operationId": "admin.venues.publish",
+        "summary": "Publish a venue and the selected pitches",
+        "description": "Needs at least one verification. Each selected pitch must belong to the venue and carry the version you reviewed; a stale one is a 409.\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "pitches": [
+                  {
+                    "id": "5eed0000-0000-4000-8000-000000000101",
+                    "version": "1761989460000000"
+                  }
+                ],
+                "reason": "Verified on site"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pitches": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "version": {
+                          "type": "string",
+                          "pattern": "^\\d{1,20}$"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "version"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "pitches"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published. ETag is the venue's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueTransitionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/venues/{id}/unpublish": {
+      "post": {
+        "operationId": "venue.unpublish",
+        "summary": "Unpublish a venue",
+        "description": "Only the venue goes back to draft. Its pitches keep their status but are hidden while the venue isn't published; pitches that were published become public again when the venue is republished, even if the publish request doesn't list them (unpublish those pitches first to keep them hidden). The public copies of the venue's and its pitches' images are deleted, and the images stay drafts until published again.\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "Checked on site 2026-11-01"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done. ETag is the record's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueTransitionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/venues/{id}/archive": {
+      "post": {
+        "operationId": "venue.archive",
+        "summary": "Archive a venue",
+        "description": "Archives the venue and all its pitches. Final: the API can't undo it.\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "Checked on site 2026-11-01"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done. ETag is the record's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueTransitionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/venues/{id}/pitches": {
+      "post": {
+        "operationId": "admin.pitches.create",
+        "summary": "Create a draft pitch at a venue",
+        "description": "Dimensions in metres with at most one decimal place. `access: null` uses the venue's rule.\n\nScope: `pitches:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "slug": "north-pitch",
+                "name": "North Pitch",
+                "surface": "grass",
+                "pitchFormat": "full",
+                "lengthMeters": 100,
+                "widthMeters": 64
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "surface": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "grass",
+                      "synthetic",
+                      "hybrid",
+                      null
+                    ]
+                  },
+                  "pitchFormat": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "full",
+                      "small_sided",
+                      "training",
+                      null
+                    ]
+                  },
+                  "lengthMeters": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "exclusiveMinimum": 0,
+                    "maximum": 200
+                  },
+                  "widthMeters": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "exclusiveMinimum": 0,
+                    "maximum": 150
+                  },
+                  "floodlights": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "access": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "public",
+                      "booking_required",
+                      "members_only",
+                      null
+                    ]
+                  }
+                },
+                "required": [
+                  "slug",
+                  "name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created as a draft.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "required": true
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "example": {
+                  "pitch": {
+                    "id": "5eed0000-0000-4000-8000-000000000101",
+                    "venueId": "5eed0000-0000-4000-8000-000000000001",
+                    "slug": "north-pitch",
+                    "name": "North Pitch",
+                    "surface": "grass",
+                    "pitchFormat": "full",
+                    "lengthMeters": 100,
+                    "widthMeters": 64,
+                    "floodlights": null,
+                    "access": null,
+                    "status": "draft",
+                    "createdAt": "2026-11-01T09:31:00.000Z",
+                    "updatedAt": "2026-11-01T09:31:00.000Z",
+                    "version": "1761989460000000"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPitchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/pitches/{id}": {
+      "get": {
+        "operationId": "admin.pitches.read",
+        "summary": "Read a pitch in any status",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Scope: `pitches:write`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pitch.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPitchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "admin.pitches.update",
+        "summary": "Update a pitch",
+        "description": "Absent fields are unchanged; null clears one (\"not confirmed\").\n\nScope: `pitches:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "floodlights": true
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "surface": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "grass",
+                      "synthetic",
+                      "hybrid",
+                      null
+                    ]
+                  },
+                  "pitchFormat": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "full",
+                      "small_sided",
+                      "training",
+                      null
+                    ]
+                  },
+                  "lengthMeters": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "exclusiveMinimum": 0,
+                    "maximum": 200
+                  },
+                  "widthMeters": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "exclusiveMinimum": 0,
+                    "maximum": 150
+                  },
+                  "floodlights": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "access": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "public",
+                      "booking_required",
+                      "members_only",
+                      null
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPitchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/pitches/{id}/publish": {
+      "post": {
+        "operationId": "pitch.publish",
+        "summary": "Publish a pitch",
+        "description": "Publishes one more pitch of a venue that is already published (publish the venue first otherwise).\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "Checked on site 2026-11-01"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done. ETag is the record's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPitchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/pitches/{id}/unpublish": {
+      "post": {
+        "operationId": "pitch.unpublish",
+        "summary": "Unpublish a pitch",
+        "description": "Back to draft; its public image copies are deleted. If it was the venue's last published pitch, the venue disappears from public search and pages until another is published.\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "Checked on site 2026-11-01"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done. ETag is the record's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPitchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/pitches/{id}/archive": {
+      "post": {
+        "operationId": "pitch.archive",
+        "summary": "Archive a pitch",
+        "description": "Final: the API can't undo it.\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "Checked on site 2026-11-01"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done. ETag is the record's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPitchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/media": {
+      "post": {
+        "operationId": "admin.media.upload",
+        "summary": "Upload an image for a venue or pitch",
+        "description": "Stored privately as a draft. Publishing needs complete rights (ADR-0006).\n\nScope: `media:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "JPEG, PNG, WebP or AVIF, at most 10 MB. Re-encoded to WebP with all metadata removed."
+                  },
+                  "venueId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "pitchId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "altText": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "displayOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "rightsBasis": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "owned",
+                      "licensed",
+                      "cc0_public_domain",
+                      "cc_by",
+                      "cc_by_sa",
+                      "written_permission",
+                      null
+                    ]
+                  },
+                  "author": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "sourceUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000,
+                    "format": "uri"
+                  },
+                  "licenseName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "licenseUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000,
+                    "format": "uri"
+                  },
+                  "attributionText": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "evidenceRef": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "commercialUseOk": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "file",
+                  "altText"
+                ],
+                "description": "Multipart text fields: give exactly one of `venueId` or `pitchId`. `displayOrder` is a whole number, `commercialUseOk` is \"true\" or \"false\", and an empty field means null."
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored as a draft with no public URL.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "required": true
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMediaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/media/{id}": {
+      "get": {
+        "operationId": "admin.media.read",
+        "summary": "Read an image's record in any status",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "description": "Scope: `media:write`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image record.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMediaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "admin.media.update",
+        "summary": "Update alt text, display order or rights",
+        "description": "A published image must still meet the publish rules after the change.\n\nScope: `media:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "rightsBasis": "owned",
+                "evidenceRef": "drive/photos/2026-11-01",
+                "commercialUseOk": true
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "altText": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "displayOrder": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "rightsBasis": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "owned",
+                      "licensed",
+                      "cc0_public_domain",
+                      "cc_by",
+                      "cc_by_sa",
+                      "written_permission",
+                      null
+                    ]
+                  },
+                  "author": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "sourceUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000,
+                    "format": "uri"
+                  },
+                  "licenseName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "licenseUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000,
+                    "format": "uri"
+                  },
+                  "attributionText": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "evidenceRef": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "commercialUseOk": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMediaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/media/{id}/publish": {
+      "post": {
+        "operationId": "media.publish",
+        "summary": "Publish an image",
+        "description": "Copies it to public storage under a new unguessable key. Needs complete rights, and its venue or pitch must not be archived.\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "Checked on site 2026-11-01"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done. ETag is the record's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMediaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/api/admin/media/{id}/unpublish": {
+      "post": {
+        "operationId": "media.unpublish",
+        "summary": "Unpublish an image",
+        "description": "Deletes the public copy, so its old URL stops working, and returns the image to draft.\n\nScope: `content:publish`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "5eed0000-0000-4000-8000-000000000001"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\"\\d{1,20}\"$",
+              "description": "The ETag from your last read of this record.",
+              "example": "\"1761987000000000\""
+            },
+            "required": true,
+            "description": "The ETag from your last read of this record.",
+            "name": "If-Match",
+            "in": "header"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+              "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+              "example": "import-2026-11-11-venue-0001"
+            },
+            "required": false,
+            "description": "Optional. A retry with the same key and request returns the stored response for 24 h.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "example": {
+                "reason": "Checked on site 2026-11-01"
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done. ETag is the record's new version.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string",
+                  "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+                },
+                "required": true,
+                "description": "The record's version, e.g. \"1761987000000000\". Send it as If-Match."
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ],
+                  "description": "Present when this is the stored response to an earlier request with the same key."
+                },
+                "required": false,
+                "description": "Present when this is the stored response to an earlier request with the same key."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMediaResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}
