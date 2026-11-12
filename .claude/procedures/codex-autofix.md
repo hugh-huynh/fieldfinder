@@ -25,9 +25,12 @@ not to obey it.
    If verify fails and you can't fix it within scope, revert your change for that comment and mark it
    `needs_human`.
 5. **Commit once** for the round: `fix(codex): <what>` with a short body listing each comment fixed,
-   ending with the Co-Authored-By trailer. Push: `git push origin HEAD:<branch>`. Never force-push,
+   ending with the Co-Authored-By trailer. In CI, write the message to `.codex-fix/commit-msg.txt` and run
+   `git commit -F .codex-fix/commit-msg.txt`: CI allows only single plain commands (no pipes, `&&`,
+   redirects, heredocs or `$(...)`). Push: `git push origin HEAD:<branch>`. Never force-push,
    never push to `main`, never amend or rebase existing commits. If nothing was fixed, don't commit.
-6. **Reply** on every comment (CI: one entry per comment in `.codex-fix/replies.json`):
+6. **Reply** on every comment. Mark a comment `fixed` only after the push succeeded; if the commit or push
+   failed, mark it `needs_human` and say what failed (CI: one entry per comment in `.codex-fix/replies.json`):
    - `fixed`: what changed and which test covers it (file names, not pasted code).
    - `not_fixed`: why, citing the code or the spec/ADR/CLAUDE.md section.
    - `needs_human`: what decision is needed and the options.

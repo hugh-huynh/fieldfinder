@@ -7,10 +7,14 @@
 //   * the names of server-only variables (a sign code read them on the client), and
 //   * the values of any of those variables set in this environment, e.g. a sentinel token planted for
 //     the build, which must never appear in client output.
-// Exits 1 with the file and the variable name (never the value) on any hit.
+//   * anything shaped like a credential (scripts/secret-patterns.ts: admin tokens, API keys, JWTs,
+//     database URLs with passwords, private keys…), whatever its source (PR 2.15).
+// Exits 1 with the file and the variable or pattern name (never the value) on any hit.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+
+import { findSecrets, SECRET_PATTERNS } from "./secret-patterns.ts";
 
 const SERVER_ONLY = [
   "DATABASE_URL_PUBLIC_READER",
@@ -51,6 +55,8 @@ for (const file of files) {
   const content = readFileSync(file, "latin1");
   for (const needle of needles)
     if (content.includes(needle.text)) hits.push(`${relative(process.cwd(), file)}: ${needle.label}`);
+  for (const name of findSecrets(content))
+    hits.push(`${relative(process.cwd(), file)}: something shaped like a ${name}`);
 }
 
 const checkedValues = needles.length - SERVER_ONLY.length;
@@ -59,5 +65,5 @@ if (hits.length > 0) {
   process.exit(1);
 }
 console.error(
-  `check-client-bundle: ${String(files.length)} client files clean (${String(SERVER_ONLY.length)} names, ${String(checkedValues)} values checked)`,
+  `check-client-bundle: ${String(files.length)} client files clean (${String(SERVER_ONLY.length)} names, ${String(checkedValues)} values, ${String(SECRET_PATTERNS.length)} secret patterns checked)`,
 );
