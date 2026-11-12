@@ -31,15 +31,23 @@ const { values, positionals } = parseArgs({
   strict: true,
 });
 
-function fail(message: string): never {
+/** Bad arguments, before anything is written to disk: exit straight away. */
+function usage(message: string): never {
   console.error(`✗ ${message}`);
   process.exit(1);
 }
 
-const deployment = positionals[0] ?? fail("usage: pnpm security:smoke <preview URL> [--out file]");
-if (!/^https:\/\/[a-z0-9-]+\.vercel\.app\/?$/.test(deployment)) fail("give a https://….vercel.app preview URL");
-const token = process.env.FF_ADMIN_TOKEN ?? fail("FF_ADMIN_TOKEN is missing (see the header of this script)");
-if (!/^ffadm_[A-Za-z0-9_-]{43}$/.test(token)) fail("FF_ADMIN_TOKEN doesn't look like an admin token");
+/** A failed check. Thrown, not exited, so the `finally` below removes the token's header file. */
+class SmokeFailure extends Error {}
+
+function fail(message: string): never {
+  throw new SmokeFailure(message);
+}
+
+const deployment = positionals[0] ?? usage("usage: pnpm security:smoke <preview URL> [--out file]");
+if (!/^https:\/\/[a-z0-9-]+\.vercel\.app\/?$/.test(deployment)) usage("give a https://….vercel.app preview URL");
+const token = process.env.FF_ADMIN_TOKEN ?? usage("FF_ADMIN_TOKEN is missing (see the header of this script)");
+if (!/^ffadm_[A-Za-z0-9_-]{43}$/.test(token)) usage("FF_ADMIN_TOKEN doesn't look like an admin token");
 
 const UNKNOWN_ID = "5eed0000-0000-4000-8000-0000ffffffff"; // well-formed, matches nothing
 const DRAFT_VENUE = "hidden-draft-park"; // fixture 5: a draft venue in the staging seed
@@ -55,12 +63,17 @@ interface Reply {
 /** One request through `vercel curl`, optionally with the admin token from a header file. */
 function call(path: string, withToken: boolean): Reply {
   const args = ["curl", path, "--deployment", deployment, "--yes", "-s", "-i"];
+  const headerFile = join(work, "auth-header");
   if (withToken) {
-    const headerFile = join(work, "auth-header");
     writeFileSync(headerFile, `Authorization: Bearer ${token}\n`, { mode: 0o600 });
     args.push("-H", `@${headerFile}`);
   }
-  const out = execFileSync("vercel", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  let out: string;
+  try {
+    out = execFileSync("vercel", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } finally {
+    rmSync(headerFile, { force: true }); // the token is on disk only for the one request
+  }
   const [head = "", ...rest] = out.split(/\r?\n\r?\n/);
   const status = Number(/HTTP\/[\d.]+ (\d{3})/.exec(head)?.[1] ?? 0);
   const headers = Object.fromEntries(
@@ -147,6 +160,10 @@ try {
   }
   console.error("\nAll good. Revoke the token now: pnpm admin:credential revoke --label <its label>");
   console.error("Your IP stays blocked from the admin API until the limiter's minute is up.");
+} catch (error) {
+  if (!(error instanceof SmokeFailure)) throw error;
+  console.error(`✗ ${error.message}`);
+  process.exitCode = 1;
 } finally {
   rmSync(work, { recursive: true, force: true });
 }
