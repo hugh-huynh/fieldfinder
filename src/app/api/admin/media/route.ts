@@ -26,7 +26,7 @@ import { runMutation } from "../_lib/mutation";
  * GET /api/admin/media?unused=true[&limit][&cursor] — images that aren't shown anywhere public, with
  * why (PR 2.16; computed, so always current). Paginated by id. Scope media:write.
  */
-export const GET = adminRoute("admin.media.unused", "media:write", async (request, { sql }) => {
+export const GET = adminRoute("admin.media.unused", async (request, { sql }) => {
   const params = new URL(request.url).searchParams;
   const raw: Record<string, string> = {};
   for (const [key, value] of params) {
@@ -44,7 +44,7 @@ export const GET = adminRoute("admin.media.unused", "media:write", async (reques
 /** The file plus a little room for the text fields and multipart framing. */
 const MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 64 * 1024;
 
-export const POST = adminRoute("admin.media.upload", "media:write", async (request, context) => {
+export const POST = adminRoute("admin.media.upload", async (request, context) => {
   if (!/^multipart\/form-data;\s*boundary=/i.test(request.headers.get("content-type") ?? "")) {
     throw new ApiError("invalid_request", "Upload with Content-Type: multipart/form-data.");
   }

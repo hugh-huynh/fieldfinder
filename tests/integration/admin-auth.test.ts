@@ -10,12 +10,12 @@ import { ADMIN_AUTH_FAILURES, ADMIN_CREDENTIAL_REQUESTS } from "@/lib/rate-limit
 import { LOCAL_ADMIN_URL } from "../setup/integration-env";
 
 // adminRoute against the local database as ff_admin_writer (PR 2.9). Credentials are inserted with
-// the operator connection, as scripts/admin-credential.ts does. There are no admin endpoints until
-// 2.10, so a test-only route stands in for one.
+// the operator connection, as scripts/admin-credential.ts does. A test-only handler under a real
+// operation name (scope venues:write) stands in for an endpoint.
 
 const operator = postgres(LOCAL_ADMIN_URL, { max: 1, onnotice: () => undefined });
 
-const GET = adminRoute("admin.test", "venues:write", (_request, { admin }) =>
+const GET = adminRoute("admin.venues.read", (_request, { admin }) =>
   Promise.resolve(Response.json({ label: admin.label })),
 );
 

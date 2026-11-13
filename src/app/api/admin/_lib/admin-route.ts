@@ -1,9 +1,9 @@
 import "server-only";
 
 import { apiRoute, type ApiContext } from "@/lib/api/handler";
+import { adminScope, type AdminOperation } from "@/lib/api/operations";
 import { authenticateAdmin, type AdminPrincipal } from "@/lib/auth/admin";
 import { createPostgresCredentialStore } from "@/lib/auth/credential-store";
-import type { AdminScope } from "@/lib/auth/scopes";
 import { adminDb } from "@/lib/db/admin";
 import type { Sql } from "@/lib/db/types";
 import { clientIp } from "@/lib/rate-limit/client-ip";
@@ -34,11 +34,11 @@ export interface AdminContext<Params> extends ApiContext<Params> {
 }
 
 export function adminRoute<Params = Record<string, never>>(
-  route: string,
-  scope: AdminScope,
+  operation: AdminOperation,
   handler: (request: Request, context: AdminContext<Params>) => Promise<Response>,
 ) {
-  return apiRoute<Params>(route, async (request, context) => {
+  const scope = adminScope(operation); // src/lib/api/operations.ts, also what the contract documents
+  return apiRoute<Params>(operation, async (request, context) => {
     const sql = adminDb();
     const admin = await authenticateAdmin(request, scope, {
       store: createPostgresCredentialStore(sql),

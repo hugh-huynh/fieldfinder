@@ -10,7 +10,7 @@ import { runMutation } from "../_lib/mutation";
 // POST /api/admin/venues — create a draft venue (spec §5, PR 2.10). Scope venues:write.
 // Optional Idempotency-Key. 201 with the venue, its ETag and Location.
 
-export const POST = adminRoute("admin.venues.create", "venues:write", async (request, context) => {
+export const POST = adminRoute("admin.venues.create", async (request, context) => {
   const { text, json } = await readJsonBody(request);
   const input = parseInput(venueCreateSchema, json);
   return runMutation(request, context, { body: text, ifMatch: null }, async (tx) => {

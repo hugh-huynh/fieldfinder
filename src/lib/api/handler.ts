@@ -5,6 +5,7 @@ import { type z } from "zod";
 import { log as defaultLogger, type Logger } from "@/lib/log";
 
 import { ApiError, errorResponse, REQUEST_ID_HEADER } from "./errors";
+import type { Operation } from "./operations";
 import { newRequestId } from "./request-id";
 
 export interface ApiContext<Params> {
@@ -20,7 +21,7 @@ type RouteHandler<Params> = (request: Request, context: { params: Promise<Params
  * `ApiError`s keep their code and public message; anything else becomes a generic 500.
  */
 export function apiRoute<Params = Record<string, never>>(
-  route: string,
+  route: Operation,
   handler: (request: Request, context: ApiContext<Params>) => Promise<Response>,
   logger: Logger = defaultLogger,
 ): RouteHandler<Params> {

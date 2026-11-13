@@ -14,7 +14,7 @@ import { runMutation } from "../../../_lib/mutation";
 
 const paramsSchema = z.object({ id: z.uuid() });
 
-export const POST = adminRoute<{ id: string }>("admin.pitches.create", "pitches:write", async (request, context) => {
+export const POST = adminRoute<{ id: string }>("admin.pitches.create", async (request, context) => {
   const { id: venueId } = parseInput(paramsSchema, await context.params);
   const { text, json } = await readJsonBody(request);
   const input = parseInput(pitchCreateSchema, json);

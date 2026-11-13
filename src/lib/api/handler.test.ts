@@ -100,7 +100,7 @@ describe("apiRoute", () => {
 
   it("passes through responses with immutable headers, such as redirects (review finding on #23)", async () => {
     const handler = apiRoute(
-      "x",
+      "venues.search",
       () => Promise.resolve(Response.redirect("https://ff.test/elsewhere", 302)),
       capture().logger,
     );
@@ -111,7 +111,7 @@ describe("apiRoute", () => {
   });
 
   it("issues a fresh request id every time and ignores one supplied by the client", async () => {
-    const handler = apiRoute("x", () => Promise.resolve(new Response("ok")), capture().logger);
+    const handler = apiRoute("venues.search", () => Promise.resolve(new Response("ok")), capture().logger);
     const forged = new Request("https://ff.test/api", { headers: { [REQUEST_ID_HEADER]: "forged-request-id" } });
     const a = await handler(forged, { params: Promise.resolve({}) });
     const b = await handler(forged, { params: Promise.resolve({}) });

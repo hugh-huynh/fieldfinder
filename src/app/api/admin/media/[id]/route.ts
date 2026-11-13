@@ -18,7 +18,7 @@ import { runMutation } from "../../_lib/mutation";
 
 const paramsSchema = z.object({ id: z.uuid() });
 
-export const GET = adminRoute<{ id: string }>("admin.media.read", "media:write", async (_request, { params, sql }) => {
+export const GET = adminRoute<{ id: string }>("admin.media.read", async (_request, { params, sql }) => {
   const { id } = parseInput(paramsSchema, await params);
   const deps = mediaDeps();
   const media = await sql.begin((tx) => readAdminMedia(tx, id, deps));
@@ -26,7 +26,7 @@ export const GET = adminRoute<{ id: string }>("admin.media.read", "media:write",
   return Response.json({ media }, { headers: { etag: formatEtag(media.version) } });
 });
 
-export const PATCH = adminRoute<{ id: string }>("admin.media.update", "media:write", async (request, context) => {
+export const PATCH = adminRoute<{ id: string }>("admin.media.update", async (request, context) => {
   const { id } = parseInput(paramsSchema, await context.params);
   const ifMatch = requireIfMatch(request);
   const { text, json } = await readJsonBody(request);
