@@ -78,4 +78,20 @@ describe("AppHeader", () => {
       "/?lat=-37.772&lng=144.979&place=Brunswick+East,+Victoria+3057&radiusKm=25&surface=grass",
     );
   });
+
+  it("keeps keyboard focus in the same box after a choice updates the URL", async () => {
+    server.use(suggestHandler());
+    const user = userEvent.setup();
+    const { rerender } = render(<AppHeader />);
+    const input = screen.getByRole("combobox");
+    await user.type(input, "Brunswick E");
+    await screen.findByRole("listbox");
+    await user.keyboard("{Enter}");
+    // The router navigates: the new URL's params reach the header.
+    search = String(push.mock.calls[0]?.[0]).replace(/^\/\?/, "");
+    rerender(<AppHeader />);
+    expect(screen.getByRole("combobox")).toBe(input);
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("Brunswick East, Victoria 3057");
+  });
 });

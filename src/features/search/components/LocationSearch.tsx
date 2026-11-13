@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import type { LocationSuggestionDto } from "@/features/locations/query";
 import { cx } from "@/lib/cx";
@@ -33,30 +33,54 @@ export function LocationSearch({ initialLabel, onSelect }: LocationSearchProps) 
   const [edited, setEdited] = useState(false);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  /** The text as of the latest keystroke, for checking an Enter that waited on the network. */
-  const latest = useRef(value);
-  function setText(text: string) {
-    latest.current = text;
-    setValue(text);
+
+  // When the URL's place changes (back/forward, or the place just chosen), show it. Done in place
+  // rather than by remounting, so the input keeps keyboard focus after a selection.
+  const [shownLabel, setShownLabel] = useState(initialLabel);
+  if (initialLabel !== shownLabel) {
+    setShownLabel(initialLabel);
+    setValue(initialLabel);
+    setEdited(false);
+    setOpen(false);
+    setActive(-1);
+  }
+
+  /**
+   * Bumped by anything that ends the current interaction (typing, choosing, Escape, Tab, blur, a new
+   * URL place), so an Enter that waited on the network only chooses if nothing happened meanwhile.
+   */
+  const generation = useRef(0);
+  useEffect(() => {
+    generation.current += 1;
+  }, [initialLabel]);
+  function dismiss() {
+    generation.current += 1;
+    setOpen(false);
+    setActive(-1);
   }
 
   const { status, suggestions, settle } = useSuggestions(edited ? value : null);
   const expanded = open && suggestions.length > 0;
 
   function choose(suggestion: LocationSuggestionDto) {
-    setText(suggestion.label);
+    generation.current += 1;
+    setValue(suggestion.label);
     setEdited(false);
     setOpen(false);
     setActive(-1);
     onSelect(suggestion);
   }
 
-  /** Enter before the list has loaded: ask now, then take its first place if the text hasn't changed. */
+  /**
+   * Enter before the list has loaded (or after it failed): ask now, then take its first place if the
+   * person hasn't typed, chosen or dismissed the search meanwhile.
+   */
   async function chooseFirstWhenReady() {
-    const typed = value;
+    generation.current += 1;
+    const asked = generation.current;
     const settled = await settle();
     const first = settled?.status === "ready" ? settled.suggestions[0] : undefined;
-    if (first !== undefined && latest.current === typed) choose(first);
+    if (first !== undefined && generation.current === asked) choose(first);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -78,7 +102,8 @@ export function LocationSearch({ initialLabel, onSelect }: LocationSearchProps) 
       case "Enter": {
         event.preventDefault();
         if (!edited) return;
-        if (status === "loading") {
+        // Loading: wait for the list. Error: try again (the failed answer isn't reused).
+        if (status === "loading" || status === "error") {
           void chooseFirstWhenReady();
           return;
         }
@@ -89,17 +114,18 @@ export function LocationSearch({ initialLabel, onSelect }: LocationSearchProps) 
       case "Escape":
         if (expanded) {
           event.preventDefault();
-          setOpen(false);
-          setActive(-1);
+          dismiss();
         } else if (value !== "") {
           event.preventDefault();
-          setText("");
+          dismiss();
+          setValue("");
           setEdited(true);
+        } else {
+          dismiss();
         }
         return;
       case "Tab":
-        setOpen(false);
-        setActive(-1);
+        dismiss();
         return;
       default:
         return;
@@ -140,7 +166,8 @@ export function LocationSearch({ initialLabel, onSelect }: LocationSearchProps) 
           maxLength={80}
           value={value}
           onChange={(event) => {
-            setText(event.target.value);
+            generation.current += 1;
+            setValue(event.target.value);
             setEdited(true);
             setOpen(true);
             setActive(-1);
@@ -148,10 +175,7 @@ export function LocationSearch({ initialLabel, onSelect }: LocationSearchProps) 
           onFocus={() => {
             if (edited) setOpen(true);
           }}
-          onBlur={() => {
-            setOpen(false);
-            setActive(-1);
-          }}
+          onBlur={dismiss}
           onKeyDown={onKeyDown}
           className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink placeholder:text-muted focus:outline-none"
         />

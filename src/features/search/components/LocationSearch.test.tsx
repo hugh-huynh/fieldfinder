@@ -151,12 +151,76 @@ describe("LocationSearch", () => {
     expect(input).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("says so when suggestions can't load, and Enter does nothing", async () => {
-    const { user, input, onSelect } = setup("", suggestHandler({ status: 503 }));
+  it.each([
+    ["Tab", "{Tab}"],
+    ["Escape", "{Escape}"],
+  ])("does not choose a place if %s dismissed the search while Enter waited", async (_name, keys) => {
+    const { user, input, onSelect } = setup("", suggestHandler({ wait: 150 }));
+    await user.type(input, "Brun");
+    await screen.findByRole("listbox"); // a list is showing
+    await user.type(input, "s{Enter}"); // "Bruns" is still loading
+    await user.keyboard(keys);
+    await new Promise((r) => setTimeout(r, 600));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("does not choose a place if the box lost focus while Enter waited", async () => {
+    const { user, input, onSelect } = setup("", suggestHandler({ wait: 150 }));
+    await user.type(input, "Brun{Enter}");
+    await user.click(document.body);
+    expect(input).not.toHaveFocus();
+    await new Promise((r) => setTimeout(r, 600));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("says so when suggestions can't load, and Enter retries without choosing while it still fails", async () => {
+    const asked: string[] = [];
+    const { user, input, onSelect } = setup("", suggestHandler({ asked, status: 503 }));
     await user.type(input, "Brun");
     expect(await screen.findByText(/Couldn't load places/, { selector: "p:not([role])" })).toBeVisible();
     await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(asked).toEqual(["Brun", "Brun"]);
+    });
+    await new Promise((r) => setTimeout(r, 100));
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("after a failure, Enter tries again and chooses once places load", async () => {
+    const asked: string[] = [];
+    const { user, input, onSelect } = setup("", suggestHandler({ asked, status: 503 }));
+    await user.type(input, "Brunswick E");
+    await screen.findByText(/Couldn't load places/, { selector: "p:not([role])" });
+    server.use(suggestHandler({ asked })); // the network recovers
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledExactlyOnceWith(PLACES[1]);
+    });
+    expect(asked).toEqual(["Brunswick E", "Brunswick E"]);
+  });
+
+  it("after a failure, retyping the same text asks again", async () => {
+    const asked: string[] = [];
+    const { user, input } = setup("", suggestHandler({ asked, status: 503 }));
+    await user.type(input, "Brun");
+    await screen.findByText(/Couldn't load places/, { selector: "p:not([role])" });
+    server.use(suggestHandler({ asked }));
+    await user.type(input, "{Backspace}n");
+    await waitFor(() => {
+      expect(options()).toHaveLength(3);
+    });
+    expect(asked).toEqual(["Brun", "Brun"]);
+  });
+
+  it("follows a new URL place without remounting, keeping focus", () => {
+    const onSelect = vi.fn();
+    const { rerender } = render(<LocationSearch initialLabel="Brunswick, Victoria 3056" onSelect={onSelect} />);
+    const input = screen.getByRole("combobox");
+    input.focus();
+    rerender(<LocationSearch initialLabel="Brunswick East, Victoria 3057" onSelect={onSelect} />);
+    expect(screen.getByRole("combobox")).toBe(input);
+    expect(input).toHaveValue("Brunswick East, Victoria 3057");
+    expect(input).toHaveFocus();
   });
 
   it("ignores a slow answer for an older query", async () => {

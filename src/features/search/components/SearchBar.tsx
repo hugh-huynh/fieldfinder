@@ -33,8 +33,8 @@ export function SearchBar() {
 
   return (
     <div role="search" aria-label="Find soccer fields" className="flex w-full max-w-2xl items-center gap-2">
-      {/* Remount when the URL's place changes (back/forward), so the box shows that place. */}
-      <LocationSearch key={label} initialLabel={label} onSelect={onSelect} />
+      {/* Not keyed by the place: the box follows URL changes itself, so it keeps focus after a choice. */}
+      <LocationSearch initialLabel={label} onSelect={onSelect} />
       <FiltersButton activeCount={activeFilterCount(state.filters)} />
     </div>
   );

@@ -8,7 +8,7 @@ import { suggestQuery, type LocationSuggestionDto, type SuggestResponse } from "
 // the 30/min/IP Firewall rule on /api/locations/ (ADR-0004), so:
 // - nothing is sent until typing pauses for SUGGEST_DEBOUNCE_MS (Enter can skip the wait: `settle`);
 // - queries the API would reject (under 2 characters, odd symbols) are never sent;
-// - one request per query: `settle` and the debounce share it;
+// - one request per query: `settle` and the debounce share it (a failed one isn't kept, so it can be retried);
 // - a newer query aborts the older request, and an answer only counts for the query it was asked for.
 // Answers aren't kept beyond the current query: Mapbox's free "temporary" results may not be stored.
 
@@ -50,10 +50,13 @@ export function useSuggestions(input: string | null): SuggestionsState & { settl
         return { status: "ready", suggestions: body.suggestions };
       })
       .catch((): Settled => ({ status: "error", suggestions: NONE }));
+    const req: Request = { query: q, controller, promise };
     void promise.then((settled) => {
+      // A failure isn't reused: the next ask for this query (Enter, or retyping it) tries again.
+      if (settled.status === "error" && inflight.current === req) inflight.current = null;
       if (!controller.signal.aborted) setAnswer({ query: q, settled });
     });
-    inflight.current = { query: q, controller, promise };
+    inflight.current = req;
     return promise;
   }, []);
 
