@@ -3,7 +3,8 @@ import "server-only";
 import { z } from "zod";
 
 import type { MediaDto, VenueDetailDto, VenueSummaryDto } from "@/features/venues/dto";
-import type { AdminMediaDto } from "@/features/media/admin-dto";
+import { UNUSED_REASONS, type AdminMediaDto } from "@/features/media/admin-dto";
+import type { UnusedMediaPage } from "@/features/media/admin-service";
 import { RIGHTS_BASES } from "@/features/media/admin-schema";
 import type { AdminPitchDto } from "@/features/pitches/admin-dto";
 import type { PitchDto } from "@/features/pitches/dto";
@@ -244,6 +245,11 @@ const adminMedia = z
     createdAt: timestamp,
     updatedAt: timestamp,
     version,
+    unused: z.boolean().meta({ description: "True when the image isn't shown anywhere public." }),
+    unusedReason: z.enum(UNUSED_REASONS).nullable().meta({
+      description:
+        "Why it's unused, owner first: owner_archived, owner_draft, owner_not_public (venue published without a published pitch), image_archived, image_draft. Null when in use.",
+    }),
   })
   .meta({ id: "AdminMedia" });
 
@@ -264,6 +270,15 @@ const adminVerification = z
 export const adminVenueResponseSchema = z.object({ venue: adminVenue }).meta({ id: "AdminVenueResponse" });
 export const adminPitchResponseSchema = z.object({ pitch: adminPitch }).meta({ id: "AdminPitchResponse" });
 export const adminMediaResponseSchema = z.object({ media: adminMedia }).meta({ id: "AdminMediaResponse" });
+export const adminMediaListResponseSchema = z
+  .object({
+    items: z.array(adminMedia),
+    nextCursor: z
+      .uuid()
+      .nullable()
+      .meta({ description: "Pass back as `cursor` for the next page. Null on the last page." }),
+  })
+  .meta({ id: "AdminMediaListResponse" });
 export const adminVerificationResponseSchema = z
   .object({ verification: adminVerification })
   .meta({ id: "AdminVerificationResponse" });
@@ -299,6 +314,7 @@ export type DriftChecks = [
   Check<Same<Shape<typeof adminVenue>, AdminVenueDto>>,
   Check<Same<Shape<typeof adminPitch>, AdminPitchDto>>,
   Check<Same<Shape<typeof adminMedia>, AdminMediaDto>>,
+  Check<Same<Shape<typeof adminMediaListResponseSchema>, UnusedMediaPage>>,
   Check<Same<Shape<typeof adminVerification>, AdminVerificationDto>>,
   Check<Same<Shape<typeof venueTransitionResponseSchema>, VenueTransitionResult>>,
 ];

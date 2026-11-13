@@ -4,7 +4,7 @@ import { OpenAPIRegistry, OpenApiGeneratorV31 } from "@asteasolutions/zod-to-ope
 import { z } from "zod";
 
 import { suggestQuerySchema } from "@/features/locations/suggest";
-import { mediaPatchSchema, mediaUploadSchema } from "@/features/media/admin-schema";
+import { mediaPatchSchema, mediaUploadSchema, unusedMediaQuerySchema } from "@/features/media/admin-schema";
 import type { AdminPitchDto } from "@/features/pitches/admin-dto";
 import { pitchCreateSchema, pitchPatchSchema } from "@/features/pitches/admin-schema";
 import type { PitchDto } from "@/features/pitches/dto";
@@ -21,6 +21,7 @@ import type { AdminScope } from "@/lib/auth/scopes";
 import { MAX_UPLOAD_BYTES } from "@/lib/media/image";
 
 import {
+  adminMediaListResponseSchema,
   adminMediaResponseSchema,
   adminPitchResponseSchema,
   adminVenueResponseSchema,
@@ -662,6 +663,22 @@ export function buildOpenApiDocument() {
       description:
         'Multipart text fields: give exactly one of `venueId` or `pitchId`. `displayOrder` is a whole number, `commercialUseOk` is "true" or "false", and an empty field means null.',
     });
+
+  registry.registerPath(
+    admin("media:write", {
+      method: "get",
+      path: "/api/admin/media",
+      operationId: "admin.media.unused",
+      summary: "List images that aren't shown anywhere public",
+      description:
+        "Unused images and why (`unusedReason`), computed on every request, so always current: images left on archived or hidden venues and pitches, and draft or archived images. `unused=true` is required; this isn't a general listing. Ordered by id; pass `nextCursor` back as `cursor`.",
+      request: { query: unusedMediaQuerySchema },
+      responses: {
+        200: { description: "One page.", content: json(adminMediaListResponseSchema) },
+        ...ADMIN_ERRORS,
+      },
+    }),
+  );
 
   registry.registerPath(
     admin("media:write", {

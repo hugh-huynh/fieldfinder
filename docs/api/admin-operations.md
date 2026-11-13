@@ -157,7 +157,23 @@ Use `pitchId` instead of `venueId` for a pitch's own photo. JPEG, PNG, WebP or A
 
 Publish images after their venue is live. A published image's URL works as soon as it's published, but the API only lists it once its venue (or pitch) is public.
 
-**Retention.** Unpublishing or archiving keeps the image record, its rights evidence and its private original; only the public copy is deleted. A later ticket adds a way to flag such images as unused.
+**Retention.** Unpublishing or archiving keeps the image record, its rights evidence and its private original; only the public copy is deleted.
+
+**Find unused images** (`media:write`): every admin image response has `unused` and `unusedReason`, and you can list all of them:
+
+```sh
+curl -s "${H[@]}" "$FF/api/admin/media?unused=true&limit=50"   # then add &cursor=<nextCursor> for the next page
+```
+
+"Unused" means the image isn't shown anywhere public. It's worked out on every request, so it's always current, and it clears by itself when the place is republished. `unusedReason` says why, the owner's state first:
+
+| `unusedReason`     | Meaning                                                                   |
+| ------------------ | ------------------------------------------------------------------------- |
+| `owner_archived`   | Its venue or pitch is archived (or the pitch's venue is)                  |
+| `owner_draft`      | Its venue or pitch is a draft (or the pitch's venue is)                   |
+| `owner_not_public` | Its venue is published but has no published pitch, so the venue is hidden |
+| `image_archived`   | The image itself is archived                                              |
+| `image_draft`      | The image itself is a draft (e.g. uploaded but not yet published)         |
 
 ## Take something down
 

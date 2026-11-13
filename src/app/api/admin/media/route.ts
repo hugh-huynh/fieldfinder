@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 
-import { fieldsFromForm, mediaUploadSchema } from "@/features/media/admin-schema";
-import { createMedia } from "@/features/media/admin-service";
+import {
+  DEFAULT_UNUSED_PAGE,
+  fieldsFromForm,
+  mediaUploadSchema,
+  unusedMediaQuerySchema,
+} from "@/features/media/admin-schema";
+import { createMedia, listUnusedMedia } from "@/features/media/admin-service";
 import { ApiError } from "@/lib/api/errors";
 import { parseInput } from "@/lib/api/handler";
 import { formatEtag } from "@/lib/api/version";
@@ -16,6 +21,25 @@ import { runMutation } from "../_lib/mutation";
 // `displayOrder` and rights fields. The image is validated and re-encoded (src/lib/media/image.ts)
 // and stored privately as a draft; it has no public URL until it's published. Scope media:write.
 // Optional Idempotency-Key.
+
+/**
+ * GET /api/admin/media?unused=true[&limit][&cursor] — images that aren't shown anywhere public, with
+ * why (PR 2.16; computed, so always current). Paginated by id. Scope media:write.
+ */
+export const GET = adminRoute("admin.media.unused", "media:write", async (request, { sql }) => {
+  const params = new URL(request.url).searchParams;
+  const raw: Record<string, string> = {};
+  for (const [key, value] of params) {
+    if (Object.hasOwn(raw, key)) throw new ApiError("invalid_request", "Invalid request parameters: repeated");
+    raw[key] = value;
+  }
+  const query = parseInput(unusedMediaQuerySchema, raw);
+  const deps = mediaDeps();
+  const page = await sql.begin((tx) =>
+    listUnusedMedia(tx, { limit: query.limit ?? DEFAULT_UNUSED_PAGE, after: query.cursor ?? null }, deps),
+  );
+  return Response.json(page);
+});
 
 /** The file plus a little room for the text fields and multipart framing. */
 const MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 64 * 1024;
