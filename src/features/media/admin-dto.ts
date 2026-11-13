@@ -8,6 +8,24 @@ import { RIGHTS_BASES } from "./admin-schema";
 // but never the private storage key: admins don't need it, and it's the one value that could reach
 // an unpublished image's bytes if storage access ever leaked.
 
+/**
+ * Why an image isn't shown anywhere public (PR 2.16, computed, never stored). Owner reasons come
+ * first: the point is finding images left on archived or hidden places (Hugh, 2026-11-09).
+ *   owner_archived   its venue or pitch is archived (or the pitch's venue is)
+ *   owner_draft      its venue or pitch is a draft (or the pitch's venue is)
+ *   owner_not_public its venue is published but has no published pitch, so the venue isn't public
+ *   image_archived   the image itself is archived
+ *   image_draft      the image itself is a draft
+ */
+export const UNUSED_REASONS = [
+  "owner_archived",
+  "owner_draft",
+  "owner_not_public",
+  "image_archived",
+  "image_draft",
+] as const;
+export type UnusedReason = (typeof UNUSED_REASONS)[number];
+
 const adminMediaRow = z.object({
   id: z.uuid(),
   venue_id: z.uuid().nullable(),
@@ -31,6 +49,7 @@ const adminMediaRow = z.object({
   created_at: dbTimestamp,
   updated_at: dbTimestamp,
   version: z.string().regex(/^\d+$/),
+  unused_reason: z.enum(UNUSED_REASONS).nullable(),
 });
 
 export interface AdminMediaDto {
@@ -60,6 +79,10 @@ export interface AdminMediaDto {
   updatedAt: string;
   /** Send back as If-Match (it's also the ETag header). */
   version: string;
+  /** True when the image isn't shown anywhere public (PR 2.16). */
+  unused: boolean;
+  /** Why it's unused; null when it's in use. */
+  unusedReason: UnusedReason | null;
 }
 
 export function toAdminMediaDto(row: unknown, publicUrl: (key: string) => string): AdminMediaDto {
@@ -89,5 +112,7 @@ export function toAdminMediaDto(row: unknown, publicUrl: (key: string) => string
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     version: r.version,
+    unused: r.unused_reason !== null,
+    unusedReason: r.unused_reason,
   };
 }

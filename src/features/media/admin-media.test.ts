@@ -76,6 +76,8 @@ describe("publishBlocker (mirrors the 0002 publish gate)", () => {
     createdAt: "",
     updatedAt: "",
     version: "1",
+    unused: true,
+    unusedReason: "image_draft",
     rights: {
       basis: "owned",
       author: null,

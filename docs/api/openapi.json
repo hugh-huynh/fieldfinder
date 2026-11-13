@@ -1159,15 +1159,27 @@
           "pitch"
         ]
       },
-      "AdminMediaResponse": {
+      "AdminMediaListResponse": {
         "type": "object",
         "properties": {
-          "media": {
-            "$ref": "#/components/schemas/AdminMedia"
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminMedia"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Pass back as `cursor` for the next page. Null on the last page."
           }
         },
         "required": [
-          "media"
+          "items",
+          "nextCursor"
         ]
       },
       "AdminMedia": {
@@ -1315,6 +1327,25 @@
             "pattern": "^\\d{1,20}$",
             "description": "updated_at in microseconds. Also the ETag; send it back as If-Match.",
             "example": "1761987000000000"
+          },
+          "unused": {
+            "type": "boolean",
+            "description": "True when the image isn't shown anywhere public."
+          },
+          "unusedReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "owner_archived",
+              "owner_draft",
+              "owner_not_public",
+              "image_archived",
+              "image_draft",
+              null
+            ],
+            "description": "Why it's unused, owner first: owner_archived, owner_draft, owner_not_public (venue published without a published pitch), image_archived, image_draft. Null when in use."
           }
         },
         "required": [
@@ -1332,7 +1363,20 @@
           "rights",
           "createdAt",
           "updatedAt",
-          "version"
+          "version",
+          "unused",
+          "unusedReason"
+        ]
+      },
+      "AdminMediaResponse": {
+        "type": "object",
+        "properties": {
+          "media": {
+            "$ref": "#/components/schemas/AdminMedia"
+          }
+        },
+        "required": [
+          "media"
         ]
       }
     },
@@ -3860,6 +3904,83 @@
       }
     },
     "/api/admin/media": {
+      "get": {
+        "operationId": "admin.media.unused",
+        "summary": "List images that aren't shown anywhere public",
+        "description": "Unused images and why (`unusedReason`), computed on every request, so always current: images left on archived or hidden venues and pitches, and draft or archived images. `unused=true` is required; this isn't a general listing. Ordered by id; pass `nextCursor` back as `cursor`.\n\nScope: `media:write`.",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "adminToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "Required. Only unused images can be listed."
+            },
+            "required": true,
+            "description": "Required. Only unused images can be listed.",
+            "name": "unused",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,3}$",
+              "description": "Items per page, 1 to 100. Default 50."
+            },
+            "required": false,
+            "description": "Items per page, 1 to 100. Default 50.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "`nextCursor` from the previous page."
+            },
+            "required": false,
+            "description": "`nextCursor` from the previous page.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMediaListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      },
       "post": {
         "operationId": "admin.media.upload",
         "summary": "Upload an image for a venue or pitch",

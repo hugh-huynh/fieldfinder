@@ -31,13 +31,56 @@ export interface MediaDeps {
   publicUrl: (key: string) => string;
 }
 
-const SELECT = (tx: Tx, id: string) => tx`
-  select id, venue_id, pitch_id, content_type, width_px, height_px, byte_size, alt_text, display_order, status,
-         public_key, rights_basis, author, source_url, license_name, license_url, attribution_text, evidence_ref,
-         commercial_use_ok, created_at, updated_at,
-         (extract(epoch from updated_at) * 1000000)::bigint::text as version
-  from public.media_assets where id = ${id}::uuid
+/**
+ * Every admin image row, with `unused_reason` computed from the same rules as the public views
+ * (migration 0003): a venue is public when published with a published pitch, a pitch when it and its
+ * venue are published, an image when it's published and its owner is public. Null means in use.
+ */
+const ADMIN_MEDIA = (tx: Tx) => tx`
+  select m.id, m.venue_id, m.pitch_id, m.content_type, m.width_px, m.height_px, m.byte_size, m.alt_text,
+         m.display_order, m.status, m.public_key, m.rights_basis, m.author, m.source_url, m.license_name,
+         m.license_url, m.attribution_text, m.evidence_ref, m.commercial_use_ok, m.created_at, m.updated_at,
+         (extract(epoch from m.updated_at) * 1000000)::bigint::text as version,
+         case
+           when v.status = 'archived' or pt.status = 'archived' then 'owner_archived'
+           when v.status = 'draft' or pt.status = 'draft' then 'owner_draft'
+           when not exists (
+             select 1 from public.pitches pp where pp.venue_id = v.id and pp.status = 'published'
+           ) then 'owner_not_public'
+           when m.status = 'archived' then 'image_archived'
+           when m.status = 'draft' then 'image_draft'
+         end as unused_reason
+  from public.media_assets m
+  left join public.pitches pt on pt.id = m.pitch_id
+  join public.venues v on v.id = coalesce(m.venue_id, pt.venue_id)
 `;
+
+const SELECT = (tx: Tx, id: string) => tx`select * from (${ADMIN_MEDIA(tx)}) media where id = ${id}::uuid`;
+
+/**
+ * One page of unused images, oldest id first (PR 2.16). `after` is the last id of the previous page.
+ * Returns up to `limit` items and the cursor for the next page (null on the last one).
+ */
+export interface UnusedMediaPage {
+  items: AdminMediaDto[];
+  /** The last id on this page; pass it back as `cursor`. Null on the last page. */
+  nextCursor: string | null;
+}
+
+export async function listUnusedMedia(
+  tx: Tx,
+  page: { limit: number; after: string | null },
+  deps: Pick<MediaDeps, "publicUrl">,
+): Promise<UnusedMediaPage> {
+  const rows = await tx`
+    select * from (${ADMIN_MEDIA(tx)}) media
+    where unused_reason is not null ${page.after === null ? tx`` : tx`and id > ${page.after}::uuid`}
+    order by id
+    limit ${page.limit + 1}
+  `;
+  const items = rows.slice(0, page.limit).map((row) => toAdminMediaDto(row, deps.publicUrl));
+  return { items, nextCursor: rows.length > page.limit ? (items.at(-1)?.id ?? null) : null };
+}
 
 export async function readAdminMedia(
   tx: Tx,

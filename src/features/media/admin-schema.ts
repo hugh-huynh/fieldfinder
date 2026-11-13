@@ -100,3 +100,27 @@ export function fieldsFromForm(form: FormData): Record<string, unknown> {
   }
   return out;
 }
+
+/** Default and maximum page sizes for GET /api/admin/media?unused=true (PR 2.16). */
+export const DEFAULT_UNUSED_PAGE = 50;
+export const MAX_UNUSED_LIMIT = 100;
+
+/**
+ * Query for the unused-images list. Strict, and `unused=true` is required, so this can only ever
+ * list unused images: it isn't a general media listing.
+ */
+export const unusedMediaQuerySchema = z
+  .object({
+    unused: z.literal("true").meta({ description: "Required. Only unused images can be listed." }),
+    limit: z
+      .string()
+      .regex(/^\d{1,3}$/)
+      .transform(Number)
+      .pipe(z.number().int().min(1).max(MAX_UNUSED_LIMIT))
+      .optional()
+      .meta({
+        description: `Items per page, 1 to ${String(MAX_UNUSED_LIMIT)}. Default ${String(DEFAULT_UNUSED_PAGE)}.`,
+      }),
+    cursor: z.uuid().optional().meta({ description: "`nextCursor` from the previous page." }),
+  })
+  .strict();

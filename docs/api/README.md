@@ -169,6 +169,10 @@ curl -s -X POST "$FF/api/admin/venues" \
 
 201, with `ETag` and `Location: /api/admin/venues/{id}`.
 
+### Unused images
+
+`GET /api/admin/media?unused=true` (`media:write`) lists images that aren't shown anywhere public, with `unusedReason` (see [admin-operations.md](admin-operations.md#images)). `unused=true` is required: it isn't a general listing. `limit` is 1–100 (default 50); pass `nextCursor` back as `cursor`. Every admin image response also carries `unused` and `unusedReason`.
+
 ### Upload an image
 
 `multipart/form-data`, one `file` (JPEG, PNG, WebP or AVIF, up to 10 MB) plus text fields. The image is re-encoded to WebP with all metadata (EXIF, GPS) removed, and stored privately as a draft.
