@@ -1385,12 +1385,12 @@
   "paths": {
     "/api/venues": {
       "get": {
+        "summary": "Search venues near a point",
+        "description": "Published venues within `radiusKm` of (`lat`, `lng`), nearest first. Pitch filters (`surface`, `pitchSize`, `lighting`, `access`) must all be met by the same pitch. Coordinates are rounded to 3 decimal places. Unknown or repeated parameters are a 400. Any non-canonical spelling of a valid query (parameter order, default values, extra digits) gets a 308 to the canonical URL; clients should request that form directly.",
         "operationId": "venues.search",
         "tags": [
           "Public"
         ],
-        "summary": "Search venues near a point",
-        "description": "Published venues within `radiusKm` of (`lat`, `lng`), nearest first. Pitch filters (`surface`, `pitchSize`, `lighting`, `access`) must all be met by the same pitch. Coordinates are rounded to 3 decimal places. Unknown or repeated parameters are a 400. Any non-canonical spelling of a valid query (parameter order, default values, extra digits) gets a 308 to the canonical URL; clients should request that form directly.",
         "parameters": [
           {
             "schema": {
@@ -1596,11 +1596,11 @@
     },
     "/api/venues/{venueSlug}": {
       "get": {
+        "summary": "A published venue with its published pitches and images",
         "operationId": "venues.detail",
         "tags": [
           "Public"
         ],
-        "summary": "A published venue with its published pitches and images",
         "parameters": [
           {
             "schema": {
@@ -1698,11 +1698,11 @@
     },
     "/api/venues/{venueSlug}/pitches/{pitchSlug}": {
       "get": {
+        "summary": "A published pitch with its venue's public details",
         "operationId": "pitches.detail",
         "tags": [
           "Public"
         ],
-        "summary": "A published pitch with its venue's public details",
         "parameters": [
           {
             "schema": {
@@ -1810,12 +1810,12 @@
     },
     "/api/locations/suggest": {
       "get": {
+        "summary": "Place and address suggestions for the search box",
+        "description": "Up to 5 Australian suggestions, biased towards Melbourne (Mapbox Geocoding). Never cached. Pass a suggestion's coordinates to `GET /api/venues`.",
         "operationId": "locations.suggest",
         "tags": [
           "Public"
         ],
-        "summary": "Place and address suggestions for the search box",
-        "description": "Up to 5 Australian suggestions, biased towards Melbourne (Mapbox Geocoding). Never cached. Pass a suggestion's coordinates to `GET /api/venues`.",
         "parameters": [
           {
             "schema": {
@@ -1866,9 +1866,9 @@
     },
     "/api/admin/venues": {
       "post": {
-        "operationId": "admin.venues.create",
         "summary": "Create a draft venue",
         "description": "JSON body, at most 64 KB. Omitted optional fields are \"not confirmed\".\n\nScope: `venues:write`.",
+        "operationId": "admin.venues.create",
         "tags": [
           "Admin"
         ],
@@ -2141,8 +2141,8 @@
     },
     "/api/admin/venues/{id}": {
       "get": {
-        "operationId": "admin.venues.read",
         "summary": "Read a venue in any status",
+        "operationId": "admin.venues.read",
         "tags": [
           "Admin"
         ],
@@ -2206,9 +2206,9 @@
         }
       },
       "patch": {
-        "operationId": "admin.venues.update",
         "summary": "Update a venue",
         "description": "Absent fields are unchanged; null clears an optional field (\"not confirmed\"). `amenities` merges: each key given is set.\n\nScope: `venues:write`.",
+        "operationId": "admin.venues.update",
         "tags": [
           "Admin"
         ],
@@ -2459,9 +2459,9 @@
     },
     "/api/admin/venues/{id}/verifications": {
       "post": {
-        "operationId": "admin.venues.verify",
         "summary": "Record a verification of a venue's details",
         "description": "A venue needs at least one before it can be published. Verifications are internal; no public route returns them.\n\nScope: `venues:write`.",
+        "operationId": "admin.venues.verify",
         "tags": [
           "Admin"
         ],
@@ -2611,9 +2611,9 @@
     },
     "/api/admin/venues/{id}/publish": {
       "post": {
-        "operationId": "admin.venues.publish",
         "summary": "Publish a venue and the selected pitches",
         "description": "Needs at least one verification. Each selected pitch must belong to the venue and carry the version you reviewed; a stale one is a 409.\n\nScope: `content:publish`.",
+        "operationId": "admin.venues.publish",
         "tags": [
           "Admin"
         ],
@@ -2775,9 +2775,9 @@
     },
     "/api/admin/venues/{id}/unpublish": {
       "post": {
-        "operationId": "venue.unpublish",
         "summary": "Unpublish a venue",
         "description": "Only the venue goes back to draft. Its pitches keep their status but are hidden while the venue isn't published; pitches that were published become public again when the venue is republished, even if the publish request doesn't list them (unpublish those pitches first to keep them hidden). The public copies of the venue's and its pitches' images are deleted, and the images stay drafts until published again.\n\nScope: `content:publish`.",
+        "operationId": "admin.venues.unpublish",
         "tags": [
           "Admin"
         ],
@@ -2907,9 +2907,9 @@
     },
     "/api/admin/venues/{id}/archive": {
       "post": {
-        "operationId": "venue.archive",
         "summary": "Archive a venue",
         "description": "Archives the venue and all its pitches. Final: the API can't undo it.\n\nScope: `content:publish`.",
+        "operationId": "admin.venues.archive",
         "tags": [
           "Admin"
         ],
@@ -3039,9 +3039,9 @@
     },
     "/api/admin/venues/{id}/pitches": {
       "post": {
-        "operationId": "admin.pitches.create",
         "summary": "Create a draft pitch at a venue",
         "description": "Dimensions in metres with at most one decimal place. `access: null` uses the venue's rule.\n\nScope: `pitches:write`.",
+        "operationId": "admin.pitches.create",
         "tags": [
           "Admin"
         ],
@@ -3252,8 +3252,8 @@
     },
     "/api/admin/pitches/{id}": {
       "get": {
-        "operationId": "admin.pitches.read",
         "summary": "Read a pitch in any status",
+        "operationId": "admin.pitches.read",
         "tags": [
           "Admin"
         ],
@@ -3317,9 +3317,9 @@
         }
       },
       "patch": {
-        "operationId": "admin.pitches.update",
         "summary": "Update a pitch",
         "description": "Absent fields are unchanged; null clears one (\"not confirmed\").\n\nScope: `pitches:write`.",
+        "operationId": "admin.pitches.update",
         "tags": [
           "Admin"
         ],
@@ -3509,9 +3509,9 @@
     },
     "/api/admin/pitches/{id}/publish": {
       "post": {
-        "operationId": "pitch.publish",
         "summary": "Publish a pitch",
         "description": "Publishes one more pitch of a venue that is already published (publish the venue first otherwise).\n\nScope: `content:publish`.",
+        "operationId": "admin.pitches.publish",
         "tags": [
           "Admin"
         ],
@@ -3641,9 +3641,9 @@
     },
     "/api/admin/pitches/{id}/unpublish": {
       "post": {
-        "operationId": "pitch.unpublish",
         "summary": "Unpublish a pitch",
         "description": "Back to draft; its public image copies are deleted. If it was the venue's last published pitch, the venue disappears from public search and pages until another is published.\n\nScope: `content:publish`.",
+        "operationId": "admin.pitches.unpublish",
         "tags": [
           "Admin"
         ],
@@ -3773,9 +3773,9 @@
     },
     "/api/admin/pitches/{id}/archive": {
       "post": {
-        "operationId": "pitch.archive",
         "summary": "Archive a pitch",
         "description": "Final: the API can't undo it.\n\nScope: `content:publish`.",
+        "operationId": "admin.pitches.archive",
         "tags": [
           "Admin"
         ],
@@ -3905,9 +3905,9 @@
     },
     "/api/admin/media": {
       "get": {
-        "operationId": "admin.media.unused",
         "summary": "List images that aren't shown anywhere public",
         "description": "Unused images and why (`unusedReason`), computed on every request, so always current: images left on archived or hidden venues and pitches, and draft or archived images. `unused=true` is required; this isn't a general listing. Ordered by id; pass `nextCursor` back as `cursor`.\n\nScope: `media:write`.",
+        "operationId": "admin.media.unused",
         "tags": [
           "Admin"
         ],
@@ -3982,9 +3982,9 @@
         }
       },
       "post": {
-        "operationId": "admin.media.upload",
         "summary": "Upload an image for a venue or pitch",
         "description": "Stored privately as a draft. Publishing needs complete rights (ADR-0006).\n\nScope: `media:write`.",
+        "operationId": "admin.media.upload",
         "tags": [
           "Admin"
         ],
@@ -4183,8 +4183,8 @@
     },
     "/api/admin/media/{id}": {
       "get": {
-        "operationId": "admin.media.read",
         "summary": "Read an image's record in any status",
+        "operationId": "admin.media.read",
         "tags": [
           "Admin"
         ],
@@ -4248,9 +4248,9 @@
         }
       },
       "patch": {
-        "operationId": "admin.media.update",
         "summary": "Update alt text, display order or rights",
         "description": "A published image must still meet the publish rules after the change.\n\nScope: `media:write`.",
+        "operationId": "admin.media.update",
         "tags": [
           "Admin"
         ],
@@ -4453,9 +4453,9 @@
     },
     "/api/admin/media/{id}/publish": {
       "post": {
-        "operationId": "media.publish",
         "summary": "Publish an image",
         "description": "Copies it to public storage under a new unguessable key. Needs complete rights, and its venue or pitch must not be archived.\n\nScope: `content:publish`.",
+        "operationId": "admin.media.publish",
         "tags": [
           "Admin"
         ],
@@ -4585,9 +4585,9 @@
     },
     "/api/admin/media/{id}/unpublish": {
       "post": {
-        "operationId": "media.unpublish",
         "summary": "Unpublish an image",
         "description": "Deletes the public copy, so its old URL stops working, and returns the image to draft.\n\nScope: `content:publish`.",
+        "operationId": "admin.media.unpublish",
         "tags": [
           "Admin"
         ],

@@ -3,6 +3,8 @@ import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { ADMIN_OPERATIONS, PUBLIC_OPERATIONS } from "@/lib/api/operations";
+
 import { buildOpenApiDocument } from "./document";
 
 // The OpenAPI drift check (PR 2.14, D22). `pnpm openapi:generate` runs this file with OPENAPI_WRITE=1
@@ -16,8 +18,12 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 const document = buildOpenApiDocument();
 const serialised = `${JSON.stringify(document, null, 2)}\n`;
 
-/** "POST /api/admin/venues/{id}/publish" for every exported handler under src/app/api. */
-function implementedOperations(): string[] {
+/**
+ * "POST /api/admin/venues/{id}/publish" for every exported handler under src/app/api, with the
+ * operation name its wrapper is given: the first string after `export const POST =`, whether that's
+ * `apiRoute("…"`, `adminRoute("…"` or `transitionRoute({ name: "…"`.
+ */
+function implementedOperations(): { operation: string; name: string | undefined }[] {
   const routes = readdirSync(API_DIR, { recursive: true, encoding: "utf8" }).filter(
     (file) => file.endsWith(`${sep}route.ts`) || file === "route.ts",
   );
@@ -29,9 +35,10 @@ function implementedOperations(): string[] {
       .split(sep)
       .join("/")
       .replace(/\[([A-Za-z]+)\]/g, "{$1}");
-    return METHODS.filter((method) => new RegExp(`export const ${method}\\b`).test(source)).map(
-      (method) => `${method} ${path}`,
-    );
+    return METHODS.flatMap((method) => {
+      const match = new RegExp(`export const ${method}\\b[^"]*"([^"]*)"`).exec(source);
+      return match === null ? [] : [{ operation: `${method} ${path}`, name: match[1] }];
+    });
   });
 }
 
@@ -90,7 +97,29 @@ function documentedOperations(): string[] {
 
 describe("OpenAPI document", () => {
   it("documents exactly the routes that exist", () => {
-    expect(documentedOperations().sort()).toEqual(implementedOperations().sort());
+    expect(documentedOperations().sort()).toEqual(
+      implementedOperations()
+        .map((o) => o.operation)
+        .sort(),
+    );
+  });
+
+  it("names each route as its operationId (both come from src/lib/api/operations.ts)", () => {
+    const operationIds = Object.fromEntries(
+      Object.entries(document.paths ?? {}).flatMap(([path, item]) =>
+        METHODS.map((m) => [`${m} ${path}`, item[m.toLowerCase() as Lowercase<(typeof METHODS)[number]>]?.operationId]),
+      ),
+    );
+    const implemented = implementedOperations();
+    expect(implemented.length).toBeGreaterThan(0);
+    for (const { operation, name } of implemented) expect(name, operation).toBe(operationIds[operation]);
+  });
+
+  it("documents every operation in src/lib/api/operations.ts exactly once", () => {
+    const ids = Object.values(document.paths ?? {}).flatMap((item) =>
+      METHODS.map((m) => item[m.toLowerCase() as Lowercase<(typeof METHODS)[number]>]?.operationId).filter(Boolean),
+    );
+    expect([...ids].sort()).toEqual([...PUBLIC_OPERATIONS, ...Object.keys(ADMIN_OPERATIONS)].sort());
   });
 
   it("matches docs/api/openapi.json (run `pnpm openapi:generate` after changing the API)", () => {

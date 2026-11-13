@@ -13,7 +13,7 @@ import { runMutation } from "../../../_lib/mutation";
 
 const paramsSchema = z.object({ id: z.uuid() });
 
-export const POST = adminRoute<{ id: string }>("admin.venues.verify", "venues:write", async (request, context) => {
+export const POST = adminRoute<{ id: string }>("admin.venues.verify", async (request, context) => {
   const { id } = parseInput(paramsSchema, await context.params);
   const { text, json } = await readJsonBody(request);
   const input = parseInput(verificationCreateSchema, json);

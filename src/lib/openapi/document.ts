@@ -17,7 +17,12 @@ import type { MediaDto, VenueDetailDto } from "@/features/venues/dto";
 import { slugSchema } from "@/features/venues/slug";
 import { API_ERRORS, type ApiErrorCode } from "@/lib/api/errors";
 import { MAX_JSON_BODY_BYTES } from "@/lib/api/body";
-import type { AdminScope } from "@/lib/auth/scopes";
+import {
+  adminScope,
+  type AdminOperation,
+  type AdminOperationWithScope,
+  type PublicOperation,
+} from "@/lib/api/operations";
 import { MAX_UPLOAD_BYTES } from "@/lib/media/image";
 
 import {
@@ -221,27 +226,43 @@ const exampleAdminPitch: AdminPitchDto = {
 };
 
 type PathConfig = Parameters<OpenAPIRegistry["registerPath"]>[0];
+/** A path's config without the parts its operation name decides. */
+type OperationConfig = Omit<PathConfig, "operationId" | "tags" | "security">;
 
-function admin(scope: AdminScope, config: PathConfig): PathConfig {
+// Operation names and admin scopes come from src/lib/api/operations.ts, the same entries the route
+// wrappers use, so the contract can't name or scope an operation differently from its route.
+
+function publicOperation(operation: PublicOperation, config: OperationConfig): PathConfig {
+  return { ...config, operationId: operation, tags: ["Public"] };
+}
+
+function admin(operation: AdminOperation, config: OperationConfig): PathConfig {
+  const scope = adminScope(operation);
   return {
     ...config,
+    operationId: operation,
     tags: ["Admin"],
     security: [{ adminToken: [] }],
     description: `${config.description ?? ""}\n\nScope: \`${scope}\`.`.trim(),
   };
 }
 
-function transition(path: string, summary: string, description: string, entity: "venue" | "pitch" | "media") {
+function transition(
+  operation: AdminOperationWithScope<"content:publish">,
+  path: string,
+  summary: string,
+  description: string,
+  entity: "venue" | "pitch" | "media",
+) {
   const response =
     entity === "venue"
       ? venueTransitionResponseSchema
       : entity === "pitch"
         ? adminPitchResponseSchema
         : adminMediaResponseSchema;
-  return admin("content:publish", {
+  return admin(operation, {
     method: "post",
     path,
-    operationId: `${entity}.${summary.split(" ")[0]?.toLowerCase() ?? "transition"}`,
     summary,
     description,
     request: {
@@ -274,136 +295,135 @@ export function buildOpenApiDocument() {
 
   // --- Public ----------------------------------------------------------------------------------
 
-  registry.registerPath({
-    method: "get",
-    path: "/api/venues",
-    operationId: "venues.search",
-    tags: ["Public"],
-    summary: "Search venues near a point",
-    description: [
-      "Published venues within `radiusKm` of (`lat`, `lng`), nearest first. Pitch filters (`surface`, `pitchSize`,",
-      "`lighting`, `access`) must all be met by the same pitch. Coordinates are rounded to 3 decimal places.",
-      "Unknown or repeated parameters are a 400. Any non-canonical spelling of a valid query (parameter order,",
-      "default values, extra digits) gets a 308 to the canonical URL; clients should request that form directly.",
-    ].join(" "),
-    request: { query: searchQuerySchema },
-    responses: {
-      200: {
-        description: "One page of results. Cached at the edge for 60 s.",
-        content: json(venueSearchResponseSchema, {
-          items: [
-            {
-              id: exampleVenueDetail.id,
-              slug: exampleVenueDetail.slug,
-              name: exampleVenueDetail.name,
-              suburb: "Brunswick",
-              state: "VIC",
-              location: exampleVenueDetail.location,
-              access: "public",
-              distanceMeters: 5236,
-              publishedPitchCount: 2,
-              matchingPitchCount: 1,
-              href: "/venues/wattlebird-reserve",
-              amenities: exampleVenueDetail.amenities,
-              image: exampleMedia,
-            },
-          ],
-          totalCount: 1,
-          nextCursor: null,
-        }),
+  registry.registerPath(
+    publicOperation("venues.search", {
+      method: "get",
+      path: "/api/venues",
+      summary: "Search venues near a point",
+      description: [
+        "Published venues within `radiusKm` of (`lat`, `lng`), nearest first. Pitch filters (`surface`, `pitchSize`,",
+        "`lighting`, `access`) must all be met by the same pitch. Coordinates are rounded to 3 decimal places.",
+        "Unknown or repeated parameters are a 400. Any non-canonical spelling of a valid query (parameter order,",
+        "default values, extra digits) gets a 308 to the canonical URL; clients should request that form directly.",
+      ].join(" "),
+      request: { query: searchQuerySchema },
+      responses: {
+        200: {
+          description: "One page of results. Cached at the edge for 60 s.",
+          content: json(venueSearchResponseSchema, {
+            items: [
+              {
+                id: exampleVenueDetail.id,
+                slug: exampleVenueDetail.slug,
+                name: exampleVenueDetail.name,
+                suburb: "Brunswick",
+                state: "VIC",
+                location: exampleVenueDetail.location,
+                access: "public",
+                distanceMeters: 5236,
+                publishedPitchCount: 2,
+                matchingPitchCount: 1,
+                href: "/venues/wattlebird-reserve",
+                amenities: exampleVenueDetail.amenities,
+                image: exampleMedia,
+              },
+            ],
+            totalCount: 1,
+            nextCursor: null,
+          }),
+        },
+        308: {
+          description: "Redirect to the canonical form of the same query.",
+          headers: z.object({ Location: z.string().meta({ example: "/api/venues?lat=-37.814&lng=144.963" }) }),
+        },
+        ...PUBLIC_ERRORS,
       },
-      308: {
-        description: "Redirect to the canonical form of the same query.",
-        headers: z.object({ Location: z.string().meta({ example: "/api/venues?lat=-37.814&lng=144.963" }) }),
-      },
-      ...PUBLIC_ERRORS,
-    },
-  });
+    }),
+  );
 
-  registry.registerPath({
-    method: "get",
-    path: "/api/venues/{venueSlug}",
-    operationId: "venues.detail",
-    tags: ["Public"],
-    summary: "A published venue with its published pitches and images",
-    request: { params: z.object({ venueSlug: slugSchema.meta({ example: "wattlebird-reserve" }) }) },
-    responses: {
-      200: {
-        description: "The venue. Cached at the edge for 60 s.",
-        content: json(venueDetailResponseSchema, {
-          venue: exampleVenueDetail,
-          pitches: [examplePitch],
-          media: [exampleMedia],
-        }),
+  registry.registerPath(
+    publicOperation("venues.detail", {
+      method: "get",
+      path: "/api/venues/{venueSlug}",
+      summary: "A published venue with its published pitches and images",
+      request: { params: z.object({ venueSlug: slugSchema.meta({ example: "wattlebird-reserve" }) }) },
+      responses: {
+        200: {
+          description: "The venue. Cached at the edge for 60 s.",
+          content: json(venueDetailResponseSchema, {
+            venue: exampleVenueDetail,
+            pitches: [examplePitch],
+            media: [exampleMedia],
+          }),
+        },
+        ...PUBLIC_ERRORS,
+        ...errors("not_found"),
       },
-      ...PUBLIC_ERRORS,
-      ...errors("not_found"),
-    },
-  });
+    }),
+  );
 
-  registry.registerPath({
-    method: "get",
-    path: "/api/venues/{venueSlug}/pitches/{pitchSlug}",
-    operationId: "pitches.detail",
-    tags: ["Public"],
-    summary: "A published pitch with its venue's public details",
-    request: {
-      params: z.object({
-        venueSlug: slugSchema.meta({ example: "wattlebird-reserve" }),
-        pitchSlug: slugSchema.meta({ example: "north-pitch" }),
-      }),
-    },
-    responses: {
-      200: {
-        description: "The pitch. Cached at the edge for 60 s.",
-        content: json(pitchDetailResponseSchema, {
-          pitch: examplePitch,
-          venue: exampleVenueDetail,
-          media: [],
-          venueMedia: [exampleMedia],
+  registry.registerPath(
+    publicOperation("pitches.detail", {
+      method: "get",
+      path: "/api/venues/{venueSlug}/pitches/{pitchSlug}",
+      summary: "A published pitch with its venue's public details",
+      request: {
+        params: z.object({
+          venueSlug: slugSchema.meta({ example: "wattlebird-reserve" }),
+          pitchSlug: slugSchema.meta({ example: "north-pitch" }),
         }),
       },
-      ...PUBLIC_ERRORS,
-      ...errors("not_found"),
-    },
-  });
+      responses: {
+        200: {
+          description: "The pitch. Cached at the edge for 60 s.",
+          content: json(pitchDetailResponseSchema, {
+            pitch: examplePitch,
+            venue: exampleVenueDetail,
+            media: [],
+            venueMedia: [exampleMedia],
+          }),
+        },
+        ...PUBLIC_ERRORS,
+        ...errors("not_found"),
+      },
+    }),
+  );
 
-  registry.registerPath({
-    method: "get",
-    path: "/api/locations/suggest",
-    operationId: "locations.suggest",
-    tags: ["Public"],
-    summary: "Place and address suggestions for the search box",
-    description:
-      "Up to 5 Australian suggestions, biased towards Melbourne (Mapbox Geocoding). Never cached. Pass a suggestion's coordinates to `GET /api/venues`.",
-    request: { query: suggestQuerySchema },
-    responses: {
-      200: {
-        description: "Suggestions; possibly none.",
-        content: json(suggestResponseSchema, {
-          suggestions: [
-            {
-              id: "dXJuOm1ieHBsYzpFeGFtcGxl",
-              name: "Brunswick",
-              label: "Brunswick, Victoria 3056, Australia",
-              type: "locality",
-              latitude: -37.767,
-              longitude: 144.96,
-            },
-          ],
-        }),
+  registry.registerPath(
+    publicOperation("locations.suggest", {
+      method: "get",
+      path: "/api/locations/suggest",
+      summary: "Place and address suggestions for the search box",
+      description:
+        "Up to 5 Australian suggestions, biased towards Melbourne (Mapbox Geocoding). Never cached. Pass a suggestion's coordinates to `GET /api/venues`.",
+      request: { query: suggestQuerySchema },
+      responses: {
+        200: {
+          description: "Suggestions; possibly none.",
+          content: json(suggestResponseSchema, {
+            suggestions: [
+              {
+                id: "dXJuOm1ieHBsYzpFeGFtcGxl",
+                name: "Brunswick",
+                label: "Brunswick, Victoria 3056, Australia",
+                type: "locality",
+                latitude: -37.767,
+                longitude: 144.96,
+              },
+            ],
+          }),
+        },
+        ...PUBLIC_ERRORS,
       },
-      ...PUBLIC_ERRORS,
-    },
-  });
+    }),
+  );
 
   // --- Admin: venues -----------------------------------------------------------------------------
 
   registry.registerPath(
-    admin("venues:write", {
+    admin("admin.venues.create", {
       method: "post",
       path: "/api/admin/venues",
-      operationId: "admin.venues.create",
       summary: "Create a draft venue",
       description: `JSON body, at most ${String(MAX_JSON_BODY_BYTES / 1024)} KB. Omitted optional fields are "not confirmed".`,
       request: {
@@ -434,10 +454,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("venues:write", {
+    admin("admin.venues.read", {
       method: "get",
       path: "/api/admin/venues/{id}",
-      operationId: "admin.venues.read",
       summary: "Read a venue in any status",
       request: { params: idParams },
       responses: {
@@ -449,10 +468,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("venues:write", {
+    admin("admin.venues.update", {
       method: "patch",
       path: "/api/admin/venues/{id}",
-      operationId: "admin.venues.update",
       summary: "Update a venue",
       description:
         'Absent fields are unchanged; null clears an optional field ("not confirmed"). `amenities` merges: each key given is set.',
@@ -474,10 +492,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("venues:write", {
+    admin("admin.venues.verify", {
       method: "post",
       path: "/api/admin/venues/{id}/verifications",
-      operationId: "admin.venues.verify",
       summary: "Record a verification of a venue's details",
       description:
         "A venue needs at least one before it can be published. Verifications are internal; no public route returns them.",
@@ -507,10 +524,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("content:publish", {
+    admin("admin.venues.publish", {
       method: "post",
       path: "/api/admin/venues/{id}/publish",
-      operationId: "admin.venues.publish",
       summary: "Publish a venue and the selected pitches",
       description:
         "Needs at least one verification. Each selected pitch must belong to the venue and carry the version you reviewed; a stale one is a 409.",
@@ -539,6 +555,7 @@ export function buildOpenApiDocument() {
 
   registry.registerPath(
     transition(
+      "admin.venues.unpublish",
       "/api/admin/venues/{id}/unpublish",
       "Unpublish a venue",
       "Only the venue goes back to draft. Its pitches keep their status but are hidden while the venue isn't published; pitches that were published become public again when the venue is republished, even if the publish request doesn't list them (unpublish those pitches first to keep them hidden). The public copies of the venue's and its pitches' images are deleted, and the images stay drafts until published again.",
@@ -547,6 +564,7 @@ export function buildOpenApiDocument() {
   );
   registry.registerPath(
     transition(
+      "admin.venues.archive",
       "/api/admin/venues/{id}/archive",
       "Archive a venue",
       "Archives the venue and all its pitches. Final: the API can't undo it.",
@@ -557,10 +575,9 @@ export function buildOpenApiDocument() {
   // --- Admin: pitches ----------------------------------------------------------------------------
 
   registry.registerPath(
-    admin("pitches:write", {
+    admin("admin.pitches.create", {
       method: "post",
       path: "/api/admin/venues/{id}/pitches",
-      operationId: "admin.pitches.create",
       summary: "Create a draft pitch at a venue",
       description: "Dimensions in metres with at most one decimal place. `access: null` uses the venue's rule.",
       request: {
@@ -591,10 +608,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("pitches:write", {
+    admin("admin.pitches.read", {
       method: "get",
       path: "/api/admin/pitches/{id}",
-      operationId: "admin.pitches.read",
       summary: "Read a pitch in any status",
       request: { params: idParams },
       responses: {
@@ -606,10 +622,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("pitches:write", {
+    admin("admin.pitches.update", {
       method: "patch",
       path: "/api/admin/pitches/{id}",
-      operationId: "admin.pitches.update",
       summary: "Update a pitch",
       description: 'Absent fields are unchanged; null clears one ("not confirmed").',
       request: {
@@ -631,6 +646,7 @@ export function buildOpenApiDocument() {
 
   registry.registerPath(
     transition(
+      "admin.pitches.publish",
       "/api/admin/pitches/{id}/publish",
       "Publish a pitch",
       "Publishes one more pitch of a venue that is already published (publish the venue first otherwise).",
@@ -639,6 +655,7 @@ export function buildOpenApiDocument() {
   );
   registry.registerPath(
     transition(
+      "admin.pitches.unpublish",
       "/api/admin/pitches/{id}/unpublish",
       "Unpublish a pitch",
       "Back to draft; its public image copies are deleted. If it was the venue's last published pitch, the venue disappears from public search and pages until another is published.",
@@ -646,7 +663,13 @@ export function buildOpenApiDocument() {
     ),
   );
   registry.registerPath(
-    transition("/api/admin/pitches/{id}/archive", "Archive a pitch", "Final: the API can't undo it.", "pitch"),
+    transition(
+      "admin.pitches.archive",
+      "/api/admin/pitches/{id}/archive",
+      "Archive a pitch",
+      "Final: the API can't undo it.",
+      "pitch",
+    ),
   );
 
   // --- Admin: media ------------------------------------------------------------------------------
@@ -665,10 +688,9 @@ export function buildOpenApiDocument() {
     });
 
   registry.registerPath(
-    admin("media:write", {
+    admin("admin.media.unused", {
       method: "get",
       path: "/api/admin/media",
-      operationId: "admin.media.unused",
       summary: "List images that aren't shown anywhere public",
       description:
         "Unused images and why (`unusedReason`), computed on every request, so always current: images left on archived or hidden venues and pitches, and draft or archived images. `unused=true` is required; this isn't a general listing. Ordered by id; pass `nextCursor` back as `cursor`.",
@@ -681,10 +703,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("media:write", {
+    admin("admin.media.upload", {
       method: "post",
       path: "/api/admin/media",
-      operationId: "admin.media.upload",
       summary: "Upload an image for a venue or pitch",
       description: "Stored privately as a draft. Publishing needs complete rights (ADR-0006).",
       request: {
@@ -704,10 +725,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("media:write", {
+    admin("admin.media.read", {
       method: "get",
       path: "/api/admin/media/{id}",
-      operationId: "admin.media.read",
       summary: "Read an image's record in any status",
       request: { params: idParams },
       responses: {
@@ -719,10 +739,9 @@ export function buildOpenApiDocument() {
   );
 
   registry.registerPath(
-    admin("media:write", {
+    admin("admin.media.update", {
       method: "patch",
       path: "/api/admin/media/{id}",
-      operationId: "admin.media.update",
       summary: "Update alt text, display order or rights",
       description: "A published image must still meet the publish rules after the change.",
       request: {
@@ -751,6 +770,7 @@ export function buildOpenApiDocument() {
 
   registry.registerPath(
     transition(
+      "admin.media.publish",
       "/api/admin/media/{id}/publish",
       "Publish an image",
       "Copies it to public storage under a new unguessable key. Needs complete rights, and its venue or pitch must not be archived.",
@@ -759,6 +779,7 @@ export function buildOpenApiDocument() {
   );
   registry.registerPath(
     transition(
+      "admin.media.unpublish",
       "/api/admin/media/{id}/unpublish",
       "Unpublish an image",
       "Deletes the public copy, so its old URL stops working, and returns the image to draft.",

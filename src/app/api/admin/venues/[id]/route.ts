@@ -16,18 +16,14 @@ import { runMutation } from "../../_lib/mutation";
 
 const paramsSchema = z.object({ id: z.uuid() });
 
-export const GET = adminRoute<{ id: string }>(
-  "admin.venues.read",
-  "venues:write",
-  async (_request, { params, sql }) => {
-    const { id } = parseInput(paramsSchema, await params);
-    const venue = await sql.begin((tx) => readAdminVenue(tx, id));
-    if (venue === null) throw new ApiError("not_found");
-    return Response.json({ venue }, { headers: { etag: formatEtag(venue.version) } });
-  },
-);
+export const GET = adminRoute<{ id: string }>("admin.venues.read", async (_request, { params, sql }) => {
+  const { id } = parseInput(paramsSchema, await params);
+  const venue = await sql.begin((tx) => readAdminVenue(tx, id));
+  if (venue === null) throw new ApiError("not_found");
+  return Response.json({ venue }, { headers: { etag: formatEtag(venue.version) } });
+});
 
-export const PATCH = adminRoute<{ id: string }>("admin.venues.update", "venues:write", async (request, context) => {
+export const PATCH = adminRoute<{ id: string }>("admin.venues.update", async (request, context) => {
   const { id } = parseInput(paramsSchema, await context.params);
   const ifMatch = requireIfMatch(request);
   const { text, json } = await readJsonBody(request);
