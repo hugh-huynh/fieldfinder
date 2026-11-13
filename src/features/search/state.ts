@@ -280,3 +280,15 @@ export function filterDialogReducer(state: FilterDialogState, action: FilterActi
       return { ...state, draft: defaultFilters() };
   }
 }
+
+/**
+ * How many filters differ from the defaults, for the Filters button's badge (PR 3.2): a changed
+ * radius counts once, each choice group once, and each required facility once.
+ */
+export function activeFilterCount(filters: SearchFilters): number {
+  return (
+    (filters.radiusKm === DEFAULT_RADIUS_KM ? 0 : 1) +
+    [filters.surface, filters.pitchSize, filters.lighting, filters.access].filter((value) => value !== null).length +
+    filters.amenities.length
+  );
+}

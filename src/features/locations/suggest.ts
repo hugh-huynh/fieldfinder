@@ -6,6 +6,10 @@ import { ApiError } from "@/lib/api/errors";
 import { mapboxGeocodingToken } from "@/lib/env";
 import { log as defaultLogger, type Logger } from "@/lib/log";
 
+import type { LocationSuggestionDto, SuggestResponse } from "./query";
+
+export { suggestQuerySchema, type LocationSuggestionDto, type SuggestResponse } from "./query";
+
 // Location suggestions for the search box (spec §5, D6, PR 2.13): a bounded proxy to Mapbox Geocoding
 // v6 forward search, Australia only, biased towards Melbourne.
 //
@@ -24,35 +28,6 @@ const TIMEOUT_MS = 3000;
 const COORDINATE_DECIMALS = 3;
 
 export const SUGGEST_CACHE_CONTROL = "no-store";
-
-/** Letters (any script), digits, spaces and the punctuation real place names and addresses use. */
-const QUERY = /^[\p{L}\p{M}\p{N} ,.'’\-/&#()]+$/u;
-
-export const suggestQuerySchema = z
-  .object({
-    q: z
-      .string()
-      .transform((value) => value.normalize("NFC").replace(/\s+/g, " ").trim())
-      .pipe(z.string().min(2).max(80).regex(QUERY)),
-  })
-  .strict();
-
-export interface LocationSuggestionDto {
-  /** Mapbox's id for the place. */
-  id: string;
-  /** Short name, e.g. "Brunswick". */
-  name: string;
-  /** Full label for the list, e.g. "Brunswick, Victoria 3056, Australia". */
-  label: string;
-  type: "postcode" | "place" | "locality" | "neighborhood" | "address";
-  /** Rounded to 3 dp; pass straight to GET /api/venues. */
-  latitude: number;
-  longitude: number;
-}
-
-export interface SuggestResponse {
-  suggestions: LocationSuggestionDto[];
-}
 
 const feature = z.object({
   properties: z.object({

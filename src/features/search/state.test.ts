@@ -4,6 +4,7 @@ import { AMENITY_KEYS } from "@/lib/domain/enums";
 
 import { canonicalQueryString, parseSearchQuery } from "./query";
 import {
+  activeFilterCount,
   apiQueryString,
   defaultFilters,
   deviceLocation,
@@ -275,5 +276,24 @@ describe("draft vs applied filters", () => {
     expect(state.applied.amenities).toEqual(["parking"]);
     expect(callers.amenities).toEqual(["parking"]);
     expect(defaultFilters()).not.toBe(defaultFilters());
+  });
+});
+
+describe("activeFilterCount", () => {
+  it("is 0 for the defaults and counts radius, each choice and each facility", () => {
+    expect(activeFilterCount(defaultFilters())).toBe(0);
+    expect(activeFilterCount({ ...defaultFilters(), radiusKm: 10 })).toBe(0);
+    expect(activeFilterCount({ ...defaultFilters(), radiusKm: 25 })).toBe(1);
+    expect(activeFilterCount({ ...defaultFilters(), lighting: false })).toBe(1);
+    expect(
+      activeFilterCount({
+        radiusKm: 1,
+        surface: "grass",
+        pitchSize: "full",
+        lighting: true,
+        access: "public",
+        amenities: ["parking", "toilets"],
+      }),
+    ).toBe(7);
   });
 });
