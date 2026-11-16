@@ -61,6 +61,8 @@ describe("ResultsPanel", () => {
   });
 
   describe("no results", () => {
+    const openFilters = vi.fn();
+
     function renderWithHeaderControls() {
       render(
         <>
@@ -72,7 +74,7 @@ describe("ResultsPanel", () => {
               aria-expanded="false"
               defaultValue="Melbourne"
             />
-            <button type="button" aria-haspopup="dialog">
+            <button type="button" aria-haspopup="dialog" onClick={openFilters}>
               Filters
             </button>
           </div>
@@ -91,8 +93,9 @@ describe("ResultsPanel", () => {
 
       await user.click(screen.getByRole("button", { name: "Search another area" }));
       expect(screen.getByRole("combobox")).toHaveFocus();
+      // "Edit filters" presses the header's Filters button, which opens the dialog (3.7).
       await user.click(screen.getByRole("button", { name: "Edit filters" }));
-      expect(screen.getByRole("button", { name: "Filters" })).toHaveFocus();
+      expect(openFilters).toHaveBeenCalledTimes(1);
     });
 
     it("suggests fewer filters only when filters are on", async () => {

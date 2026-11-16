@@ -4,8 +4,8 @@ import { AMENITY_KEYS, type AmenityKey, type PitchFormat, type Surface } from "@
 // Wording for venue cards (PR 3.3). Only confirmed facts are worded: an unconfirmed attribute has no
 // label here, so it is left off the card rather than shown as "no" (CLAUDE.md rule 4).
 
-const SURFACE_LABELS: Record<Surface, string> = { grass: "Grass", synthetic: "Synthetic", hybrid: "Hybrid" };
-const FORMAT_LABELS: Record<PitchFormat, string> = {
+export const SURFACE_LABELS: Record<Surface, string> = { grass: "Grass", synthetic: "Synthetic", hybrid: "Hybrid" };
+export const FORMAT_LABELS: Record<PitchFormat, string> = {
   full: "Full size",
   small_sided: "Small-sided",
   training: "Training",
