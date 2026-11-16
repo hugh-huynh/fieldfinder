@@ -30,13 +30,15 @@ export interface MapMarker {
 export interface MapAdapterProps {
   /** In list order, so keyboard focus moves through the markers in the same order as the cards. */
   markers: readonly MapMarker[];
+  // Each marker is a <button data-marker-id={id} aria-haspopup="dialog" aria-expanded={chosen}>, so
+  // SearchMap can return focus to it when its preview closes.
   /** The area to show. Applied when the map starts and whenever `viewKey` changes, not on every render. */
   bounds: MapBounds;
   /** Changes for a new search (once its first page arrives) and on Recentre; not on "Show more". */
   viewKey: string;
   /** The marker for the card under the pointer or keyboard focus in the list. */
   highlightedId: string | null;
-  /** The marker the person chose on the map: drawn larger and darker. */
+  /** The marker the person chose on the map: drawn larger and darker, its preview open (3.5). */
   selectedId: string | null;
   onMarkerClick: (id: string) => void;
   /** Recentre button: show `bounds` again. */

@@ -119,6 +119,10 @@ describe("MapboxMap", () => {
       ["Venue 2, 4 pitches", "4"],
     ]);
 
+    const first = screen.getByRole("button", { name: "Venue 1, 2 pitches" });
+    expect(first).toHaveAttribute("data-marker-id", "v1");
+    expect(first).toHaveAttribute("aria-haspopup", "dialog");
+
     rerender(<MapboxMap {...props({ markers: [marker(2, 4), marker(3)] })} />);
     expect(markerButtons()).toEqual([
       ["Venue 2, 4 pitches", "4"],
@@ -140,7 +144,7 @@ describe("MapboxMap", () => {
     const two = screen.getByRole("button", { name: "Venue 2, 4 pitches" });
     expect(one).toHaveAttribute("data-marker-state", "highlighted");
     expect(two).toHaveAttribute("data-marker-state", "selected");
-    expect(two).toHaveAttribute("aria-pressed", "true");
+    expect(two).toHaveAttribute("aria-expanded", "true");
     expect(two.className).toContain("scale-125");
     expect(two.parentElement?.style.zIndex).toBe("2");
     expect(glMap().fitBounds).not.toHaveBeenCalled();

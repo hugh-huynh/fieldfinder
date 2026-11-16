@@ -103,7 +103,7 @@ describe("SearchMap", () => {
 
     await user.click(marker("South Oval, 2 pitches"));
     const chosen = marker("South Oval, 2 pitches");
-    expect(chosen).toHaveAttribute("aria-pressed", "true");
+    expect(chosen).toHaveAttribute("aria-expanded", "true");
     expect(chosen).toHaveAttribute("data-marker-state", "selected");
     expect(chosen.className).toContain("scale-125");
     expect(chosen.className).toContain("bg-primary-dark");
@@ -111,11 +111,11 @@ describe("SearchMap", () => {
     expect(screen.getByRole("list", { name: "Venues" })).toBeInTheDocument();
 
     await user.click(marker("North Reserve, 1 pitch"));
-    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-pressed", "false");
-    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("aria-pressed", "true");
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-expanded", "false");
+    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("aria-expanded", "true");
 
     await user.click(marker("North Reserve, 1 pitch"));
-    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("aria-pressed", "false");
+    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("zooms with the buttons, and Recentre goes back to the search's area", async () => {
@@ -172,7 +172,7 @@ describe("SearchMap", () => {
     await waitFor(() => {
       expect(marker("North Reserve, 1 pitch")).toHaveAttribute("data-marker-state", "highlighted");
     });
-    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-pressed", "true");
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-expanded", "true");
 
     // A wider radius: same place, same venues back.
     search = "lat=-37.814&lng=144.963&place=Melbourne&radiusKm=20";
@@ -185,7 +185,7 @@ describe("SearchMap", () => {
     await waitFor(() => {
       expect(markerNames()).toHaveLength(3);
     });
-    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-pressed", "false");
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-expanded", "false");
     expect(marker("South Oval, 2 pitches")).toHaveAttribute("data-marker-state", "default");
     expect(marker("North Reserve, 1 pitch")).toHaveAttribute("data-marker-state", "default");
   });
@@ -196,6 +196,7 @@ describe("SearchMap", () => {
     const { rerender } = renderSearch();
     await screen.findByRole("list", { name: "Venues" });
     await user.click(marker("South Oval, 2 pitches"));
+    expect(screen.getByRole("dialog", { name: "South Oval" })).toBeInTheDocument();
     const view = fakeMap().dataset.viewKey;
 
     server.use(searchHandler([{ items: [venueResult(9, { name: "Other Park" })], totalCount: 1, nextCursor: null }]));
@@ -210,7 +211,95 @@ describe("SearchMap", () => {
       expect(markerNames()).toEqual(["Other Park, 2 pitches"]);
     });
     expect(fakeMap().dataset.viewKey).not.toBe(view);
-    expect(marker("Other Park, 2 pitches")).toHaveAttribute("aria-pressed", "false");
+    expect(marker("Other Park, 2 pitches")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  describe("marker preview (3.5)", () => {
+    // One venue with a single published pitch (its href is the pitch page) and one with several, of
+    // which only one matches the filters (its href is still the venue page: routing ignores filters).
+    const single = venueResult(1, {
+      name: "Single Pitch Reserve",
+      publishedPitchCount: 1,
+      matchingPitchCount: 1,
+      href: "/venues/single-pitch-reserve/pitches/main-pitch",
+    });
+    const multi = venueResult(2, {
+      name: "Multi Pitch Park",
+      publishedPitchCount: 4,
+      matchingPitchCount: 1,
+      distanceMeters: 2100,
+      href: "/venues/multi-pitch-park",
+    });
+
+    async function openSearch() {
+      server.use(searchHandler([{ items: [single, multi], totalCount: 2, nextCursor: null }]));
+      const user = userEvent.setup();
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      return user;
+    }
+
+    const preview = () => screen.queryByRole("dialog");
+
+    it("opens on the first click and moves focus to it, without navigating", async () => {
+      const user = await openSearch();
+      expect(preview()).toBeNull();
+      await user.click(marker("Multi Pitch Park, 4 pitches"));
+
+      const dialog = screen.getByRole("dialog", { name: "Multi Pitch Park" });
+      const link = within(dialog).getByRole("link", { name: "Multi Pitch Park" });
+      expect(link).toHaveFocus();
+      expect(dialog).toHaveTextContent("1 of 4 pitches match");
+      expect(dialog).toHaveTextContent("2.1 km");
+      expect(marker("Multi Pitch Park, 4 pitches")).toHaveAttribute("aria-expanded", "true");
+      expect(marker("Multi Pitch Park, 4 pitches")).toHaveAttribute("aria-haspopup", "dialog");
+    });
+
+    it("links to the pitch page for a single-pitch venue and the venue page otherwise, whatever matches", async () => {
+      const user = await openSearch();
+      await user.click(marker("Single Pitch Reserve, 1 pitch"));
+      expect(within(screen.getByRole("dialog")).getByRole("link")).toHaveAttribute(
+        "href",
+        "/venues/single-pitch-reserve/pitches/main-pitch",
+      );
+      await user.click(marker("Multi Pitch Park, 4 pitches"));
+      expect(within(screen.getByRole("dialog")).getByRole("link")).toHaveAttribute("href", "/venues/multi-pitch-park");
+      expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    });
+
+    it("closes on Escape and puts focus back on its marker", async () => {
+      const user = await openSearch();
+      await user.click(marker("Multi Pitch Park, 4 pitches"));
+      await user.keyboard("{Escape}");
+      expect(preview()).toBeNull();
+      expect(marker("Multi Pitch Park, 4 pitches")).toHaveFocus();
+      expect(marker("Multi Pitch Park, 4 pitches")).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("closes with its Close button, putting focus back on the marker", async () => {
+      const user = await openSearch();
+      await user.click(marker("Single Pitch Reserve, 1 pitch"));
+      await user.click(screen.getByRole("button", { name: "Close preview" }));
+      expect(preview()).toBeNull();
+      expect(marker("Single Pitch Reserve, 1 pitch")).toHaveFocus();
+    });
+
+    it("works from the keyboard: Enter on a marker opens it, Tab stays inside the page order", async () => {
+      const user = await openSearch();
+      marker("Single Pitch Reserve, 1 pitch").focus();
+      await user.keyboard("{Enter}");
+      expect(within(screen.getByRole("dialog")).getByRole("link")).toHaveFocus();
+      await user.tab();
+      expect(screen.getByRole("button", { name: "Close preview" })).toHaveFocus();
+    });
+
+    it("closes when its marker is clicked again", async () => {
+      const user = await openSearch();
+      await user.click(marker("Single Pitch Reserve, 1 pitch"));
+      await user.click(marker("Single Pitch Reserve, 1 pitch"));
+      expect(preview()).toBeNull();
+    });
   });
 
   describe("when there's no map", () => {
