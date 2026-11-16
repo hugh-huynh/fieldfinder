@@ -4,14 +4,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { LocationSuggestionDto } from "@/features/locations/query";
 
-import { activeFilterCount, parseSearchState, placeLocation, serializeSearchState } from "../state";
+import { parseSearchState, placeLocation, serializeSearchState, type SearchFilters } from "../state";
 
-import { FiltersButton } from "./FiltersButton";
+import { FiltersControl } from "./FiltersDialog";
 import { LocationSearch } from "./LocationSearch";
 
 // The header's search controls on every page: one location search and, directly beside it, the one
 // Filters button. Choosing a place goes to the search results (`/`) for it, keeping the current
-// filters (PR 3.1 state model).
+// filters (PR 3.1 state model). Applying filters (3.7) goes to the results for the current place
+// with the new filters, from any page.
 
 /** "Brunswick, Victoria 3056, Australia" → "Brunswick, Victoria 3056": every result is in Australia. */
 function placeLabel(suggestion: LocationSuggestionDto): string {
@@ -31,11 +32,15 @@ export function SearchBar() {
     router.push(`/?${query}`);
   }
 
+  function onApplyFilters(filters: SearchFilters) {
+    router.push(`/?${serializeSearchState({ location: state.location, filters })}`);
+  }
+
   return (
     <div role="search" aria-label="Find soccer fields" className="flex w-full max-w-2xl items-center gap-2">
       {/* Not keyed by the place: the box follows URL changes itself, so it keeps focus after a choice. */}
       <LocationSearch initialLabel={label} onSelect={onSelect} />
-      <FiltersButton activeCount={activeFilterCount(state.filters)} />
+      <FiltersControl filters={state.filters} onApply={onApplyFilters} />
     </div>
   );
 }

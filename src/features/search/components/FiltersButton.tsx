@@ -1,14 +1,22 @@
 "use client";
 
+import { type MouseEvent } from "react";
+
 import { cx } from "@/lib/cx";
 
 import { FiltersIcon } from "./icons";
 
 // The single Filters button, directly beside the location search (spec §3, CLAUDE.md rule 6). Its
-// badge counts the applied filters that differ from the defaults. The dialog it opens is PR 3.7.
+// badge counts the applied filters that differ from the defaults. It opens the Filters dialog (3.7).
 // On narrow screens the word "Filters" is visually hidden but stays the button's accessible name.
 
-export function FiltersButton({ activeCount, onClick }: { activeCount: number; onClick?: () => void }) {
+export function FiltersButton({
+  activeCount,
+  onClick,
+}: {
+  activeCount: number;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+}) {
   const name = activeCount === 0 ? "Filters" : `Filters, ${String(activeCount)} active`;
   return (
     <button

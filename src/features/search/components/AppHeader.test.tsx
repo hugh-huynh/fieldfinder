@@ -79,6 +79,28 @@ describe("AppHeader", () => {
     );
   });
 
+  it("applies filters as one new URL for the current place (3.7)", async () => {
+    search = "lat=-37.767&lng=144.962&place=Brunswick&surface=grass";
+    const user = userEvent.setup();
+    render(<AppHeader />);
+    await user.click(screen.getByRole("button", { name: "Filters, 1 active" }));
+    await user.click(screen.getByRole("radio", { name: "Hybrid" }));
+    await user.click(screen.getByRole("checkbox", { name: "Toilets" }));
+    expect(push).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Show venues" }));
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith("/?lat=-37.767&lng=144.962&place=Brunswick&surface=hybrid&amenities=toilets");
+  });
+
+  it("applies filters with no place yet, going to the results page", async () => {
+    const user = userEvent.setup();
+    render(<AppHeader />);
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.click(screen.getByRole("radio", { name: "Grass" }));
+    await user.click(screen.getByRole("button", { name: "Show venues" }));
+    expect(push).toHaveBeenCalledWith("/?surface=grass");
+  });
+
   it("keeps keyboard focus in the same box after a choice updates the URL", async () => {
     server.use(suggestHandler());
     const user = userEvent.setup();
