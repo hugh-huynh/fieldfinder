@@ -459,6 +459,51 @@ describe("SearchMap", () => {
       expect(scrollTo).toHaveBeenCalledTimes(1);
     });
 
+    it("starts a fresh search at the top of the list, but keeps a saved position on return", async () => {
+      window.history.replaceState(null, "", "/");
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+      // jsdom doesn't lay out, but it keeps scrollTop as set.
+      const scroller: { current: HTMLDivElement | null } = { current: null };
+      const tree = () => (
+        <SearchResultsProvider>
+          <SearchMap />
+          <div
+            data-results-scroller=""
+            ref={(element) => {
+              scroller.current = element;
+              if (element !== null) element.scrollTo = vi.fn();
+            }}
+          >
+            <ResultsPanel />
+          </div>
+        </SearchResultsProvider>
+      );
+      const scrollTop = () => scroller.current?.scrollTop;
+      const setScrollTop = (px: number) => {
+        if (scroller.current !== null) scroller.current.scrollTop = px;
+      };
+      const { rerender } = render(tree());
+      await screen.findByRole("list", { name: "Venues" });
+      setScrollTop(300);
+      expect(scrollTop()).toBe(300);
+
+      // Choosing another place: the same scroll container, a new search.
+      search = "lat=-37.7&lng=145.0&place=Elsewhere";
+      window.history.replaceState({ __NA: true }, "", "/?fresh");
+      rerender(tree());
+      await waitFor(() => {
+        expect(scrollTop()).toBe(0);
+      });
+
+      // Back to an entry that saved a position: not reset.
+      setScrollTop(300);
+      search = "lat=-37.814&lng=144.963&place=Melbourne";
+      window.history.replaceState({ __NA: true, [KEY]: { query: CANONICAL, scrollY: 300 } }, "", "/?back");
+      rerender(tree());
+      await screen.findByRole("list", { name: "Venues" });
+      expect(scrollTop()).toBe(300);
+    });
+
     it("never asks for more than one page's worth", async () => {
       saveEntry({ query: CANONICAL, loaded: 90 });
       const asked: string[] = [];

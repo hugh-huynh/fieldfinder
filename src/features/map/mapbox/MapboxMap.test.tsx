@@ -19,7 +19,9 @@ const gl = vi.hoisted(() => {
     readonly handlers = new Map<string, Handler[]>();
     readonly fitBounds = vi.fn();
     readonly panBy = vi.fn();
-    readonly getContainer = vi.fn(() => ({ clientHeight: 600 }));
+    /** The map's size (set per test). */
+    size = { clientWidth: 800, clientHeight: 600 };
+    readonly getContainer = vi.fn(() => this.size);
     /** Screen position the stand-in reports for any point (set per test). */
     projected = { x: 100, y: 300 };
     readonly project = vi.fn(() => this.projected);
@@ -179,6 +181,19 @@ describe("MapboxMap", () => {
       ],
       { padding: { top: 48, bottom: 48, left: 48, right: 48 }, maxZoom: 15 },
     );
+  });
+
+  it("still fits into the strip of map the list-focused sheet leaves (3.8)", () => {
+    const { rerender } = render(<MapboxMap {...props()} />);
+    // A 390×844 phone: 716 px of map, 620 px of it under the sheet.
+    glMap().size = { clientWidth: 390, clientHeight: 716 };
+    const obscured = { top: 0, bottom: 620, left: 0, right: 64 };
+    rerender(<MapboxMap {...props({ obscured, viewKey: "search-1|recentre" })} />);
+    const [, options] = glMap().fitBounds.mock.lastCall as [unknown, { padding: MapAdapterProps["obscured"] }];
+    const { top, bottom, left, right } = options.padding;
+    expect(top + bottom).toBeLessThanOrEqual(716 - 48);
+    expect(bottom).toBeGreaterThanOrEqual(620);
+    expect(left + right).toBeLessThanOrEqual(390 - 48);
   });
 
   it("zooms with its buttons and passes Recentre up", async () => {

@@ -8,6 +8,8 @@ import { MapControls } from "../components/MapControls";
 import { type MapAdapterProps, type MapBounds } from "../types";
 import { markerClassName, markerState, markerZIndex } from "../view";
 
+import { fitPadding } from "./fit";
+
 // The real map (D3, PR 3.4): mapbox-gl v3 driven directly (no React wrapper; the MapAdapter interface
 // already hides it). The only module that imports mapbox-gl, and it's loaded with next/dynamic
 // (ssr: false) on the search page, so it never runs on the server or ships in other routes.
@@ -22,20 +24,14 @@ import { markerClassName, markerState, markerZIndex } from "../view";
 //   a view and keeping a chosen marker clear of its preview are not.
 
 const STYLE = "mapbox://styles/mapbox/streets-v12";
-const FIT_PADDING_PX = 48;
 const FIT_MAX_ZOOM = 15;
 
-/** A search's area, fitted with room around it and clear of whatever covers the map. */
-function padded(obscured: MapAdapterProps["obscured"]) {
-  return {
-    padding: {
-      top: FIT_PADDING_PX + obscured.top,
-      bottom: FIT_PADDING_PX + obscured.bottom,
-      left: FIT_PADDING_PX + obscured.left,
-      right: FIT_PADDING_PX + obscured.right,
-    },
-    maxZoom: FIT_MAX_ZOOM,
-  };
+/**
+ * A search's area, fitted with room around it and clear of whatever covers the map, always leaving
+ * some of the map to fit into (fit.ts).
+ */
+function padded(obscured: MapAdapterProps["obscured"], element: Pick<HTMLElement, "clientWidth" | "clientHeight">) {
+  return { padding: fitPadding(obscured, element.clientWidth, element.clientHeight), maxZoom: FIT_MAX_ZOOM };
 }
 /** A restored viewport: exactly the saved box, no padding, no animation. */
 const EXACT = { padding: 0, duration: 0 } as const;
@@ -100,7 +96,7 @@ export function MapboxMap({
         accessToken: token,
         style: STYLE,
         bounds: toLngLatBounds(latest.current.bounds),
-        fitBoundsOptions: latest.current.fit === "exact" ? EXACT : padded(latest.current.obscured),
+        fitBoundsOptions: latest.current.fit === "exact" ? EXACT : padded(latest.current.obscured, element),
         dragRotate: false,
         pitchWithRotate: false,
         touchPitch: false,
@@ -141,7 +137,12 @@ export function MapboxMap({
   useEffect(() => {
     if (fittedKey.current === viewKey) return;
     fittedKey.current = viewKey;
-    map.current?.fitBounds(toLngLatBounds(bounds), fit === "exact" ? EXACT : padded(latest.current.obscured));
+    const instance = map.current;
+    if (instance === null) return;
+    instance.fitBounds(
+      toLngLatBounds(bounds),
+      fit === "exact" ? EXACT : padded(latest.current.obscured, instance.getContainer()),
+    );
   }, [viewKey, bounds, fit]);
 
   // A chosen marker under the preview card or the mobile sheet is panned into view (3.6, 3.8). Not
