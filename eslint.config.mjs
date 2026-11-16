@@ -13,6 +13,11 @@ const DB_ADMIN_PATTERN = {
   group: ["@/lib/db/admin", "**/lib/db/admin"],
   message: "The writer connection is only for /api/admin routes; use publicDb() (ADR-0002).",
 };
+// D3: the map is reached through the MapAdapter; only src/features/map/mapbox/ imports mapbox-gl.
+const MAPBOX_PATTERN = {
+  group: ["mapbox-gl", "mapbox-gl/*"],
+  message: "Use the MapAdapter (src/features/map); only src/features/map/mapbox/ imports mapbox-gl (D3).",
+};
 
 export default tseslint.config(
   {
@@ -45,12 +50,24 @@ export default tseslint.config(
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/lib/db/**"],
     rules: {
-      "no-restricted-imports": ["error", { paths: [DB_RESTRICTED_PATH], patterns: [DB_CLIENT_PATTERN] }],
+      "no-restricted-imports": [
+        "error",
+        { paths: [DB_RESTRICTED_PATH], patterns: [DB_CLIENT_PATTERN, MAPBOX_PATTERN] },
+      ],
     },
   },
   {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/lib/db/**", "src/app/api/admin/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { paths: [DB_RESTRICTED_PATH], patterns: [DB_CLIENT_PATTERN, DB_ADMIN_PATTERN, MAPBOX_PATTERN] },
+      ],
+    },
+  },
+  {
+    files: ["src/features/map/mapbox/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",

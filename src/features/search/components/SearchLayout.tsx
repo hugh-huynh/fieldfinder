@@ -1,8 +1,8 @@
 import { type ReactNode } from "react";
 
 // The search page's frame (spec §3): on desktop the venue list (~55%) beside a sticky map (~45%); on
-// mobile the map above the results sheet. The map (3.4) and the draggable 3-snap sheet (3.6) replace
-// the placeholders here; the list content is 3.3.
+// mobile the map above the results sheet. The map is 3.4 and the list 3.3; the draggable 3-snap
+// sheet (3.6) will replace the mobile list column.
 
 export function SearchLayout({ list, map }: { list: ReactNode; map: ReactNode }) {
   return (
@@ -17,7 +17,7 @@ export function SearchLayout({ list, map }: { list: ReactNode; map: ReactNode })
   );
 }
 
-/** Stands in for the map until 3.4. Decorative, so it's hidden from assistive tech. */
+/** Fills the map's space while the map's code loads. Decorative, so it's hidden from assistive tech. */
 export function MapPlaceholder() {
   return <div aria-hidden="true" className="size-full bg-subtle" />;
 }

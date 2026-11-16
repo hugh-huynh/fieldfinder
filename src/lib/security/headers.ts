@@ -6,6 +6,9 @@
 // MEDIA_PUBLIC_BASE_URL, never the path) is allowed in img-src. A missing or malformed value adds
 // nothing. Read here rather than via src/lib/env.ts, which is server-only and can't load in
 // next.config.ts; the value isn't secret.
+//
+// Map (PR 3.4): mapbox-gl fetches styles, tiles and fonts from api.mapbox.com and *.tiles.mapbox.com,
+// reports map loads (its billing) to events.mapbox.com, and runs its worker from a blob: URL.
 
 /** The http(s) origin of `value`, or null if it isn't a usable URL. */
 export function mediaOrigin(value: string | undefined): string | null {
@@ -21,7 +24,9 @@ function contentSecurityPolicy(media: string | null): string {
     "style-src 'self' 'unsafe-inline'",
     ["img-src 'self' data: blob:", media].filter(Boolean).join(" "),
     "font-src 'self'",
-    "connect-src 'self'",
+    "connect-src 'self' https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com",
+    "worker-src 'self' blob:",
+    "child-src blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
