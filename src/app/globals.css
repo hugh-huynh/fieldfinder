@@ -2,6 +2,16 @@
 @import "../styles/tokens.css";
 
 @layer base {
+  /* Header height (src/features/search/components/AppHeader.tsx): two rows on phones, one from sm. */
+  :root {
+    --header-h: 8rem;
+  }
+  @media (min-width: 40rem) {
+    :root {
+      --header-h: 4.5rem;
+    }
+  }
+
   body {
     background-color: var(--color-surface);
     color: var(--color-ink);
