@@ -36,7 +36,7 @@ function styleMarkers(entries: Map<string, MarkerEntry>, highlightedId: string |
   for (const [id, { wrapper, button }] of entries) {
     const state = markerState(id, highlightedId, selectedId);
     button.className = markerClassName(state);
-    button.setAttribute("aria-pressed", String(state === "selected"));
+    button.setAttribute("aria-expanded", String(state === "selected"));
     button.dataset.markerState = state;
     wrapper.style.zIndex = String(markerZIndex(state));
   }
@@ -136,6 +136,8 @@ export function MapboxMap({
       button.type = "button";
       button.textContent = String(m.count);
       button.setAttribute("aria-label", m.label);
+      button.setAttribute("aria-haspopup", "dialog");
+      button.dataset.markerId = m.id;
       button.addEventListener("click", (event) => {
         event.stopPropagation();
         latest.current.onMarkerClick(m.id);

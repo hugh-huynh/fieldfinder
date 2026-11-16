@@ -49,7 +49,7 @@ test.describe("search map", () => {
     await expect(royal).toBeVisible();
 
     await royal.click();
-    await expect(royal).toHaveAttribute("aria-pressed", "true");
+    await expect(royal).toHaveAttribute("aria-expanded", "true");
     // Choosing a marker previews (3.5); it never navigates on its own.
     await expect(page).toHaveURL(SEARCH);
 

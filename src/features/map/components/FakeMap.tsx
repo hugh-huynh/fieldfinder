@@ -67,7 +67,9 @@ export function FakeMap({
               <button
                 type="button"
                 aria-label={marker.label}
-                aria-pressed={state === "selected"}
+                aria-haspopup="dialog"
+                aria-expanded={state === "selected"}
+                data-marker-id={marker.id}
                 data-marker-state={state}
                 className={markerClassName(state)}
                 onClick={() => {
