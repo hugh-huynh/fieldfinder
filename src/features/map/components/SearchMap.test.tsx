@@ -2,6 +2,8 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { flushSavedView } from "@/features/search/history-state";
+
 import { server } from "../../../../tests/msw/server";
 import { searchHandler, venueResult } from "../../../../tests/msw/venues";
 import { ResultsPanel } from "@/features/search/components/ResultsPanel";
@@ -13,8 +15,10 @@ import { SearchMap } from "./SearchMap";
 // highlights its marker, choosing a marker draws it larger and darker, Recentre and zoom.
 
 let search = "lat=-37.814&lng=144.963&place=Melbourne";
+const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(search),
+  useRouter: () => router,
 }));
 
 beforeEach(() => {
@@ -299,6 +303,142 @@ describe("SearchMap", () => {
       await user.click(marker("Single Pitch Reserve, 1 pitch"));
       await user.click(marker("Single Pitch Reserve, 1 pitch"));
       expect(preview()).toBeNull();
+    });
+  });
+
+  describe("Search this area (3.6)", () => {
+    const offer = () => screen.queryByRole("button", { name: "Search this area" });
+
+    it("isn't offered for the search's own view, only after the person moves the map", async () => {
+      const asked: string[] = [];
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }], { asked }));
+      const user = userEvent.setup();
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      expect(offer()).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Zoom in" }));
+      expect(offer()).toBeVisible();
+      // Moving the map never searches by itself.
+      expect(asked).toHaveLength(1);
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("searches the visible area's centre with a radius covering it, keeping the other filters", async () => {
+      search = "lat=-37.814&lng=144.963&place=Melbourne&surface=grass&amenities=toilets";
+      server.use(searchHandler([{ items: [], totalCount: 0, nextCursor: null }]));
+      const user = userEvent.setup();
+      renderSearch();
+      await screen.findByText("No venues match this search.");
+      // No venues: the view is the 10 km radius box around the place. Zooming in halves it.
+      await user.click(screen.getByRole("button", { name: "Zoom in" }));
+      await user.click(screen.getByRole("button", { name: "Search this area" }));
+
+      expect(router.push).toHaveBeenCalledTimes(1);
+      const url = new URL(String(router.push.mock.calls[0]?.[0]), "http://x");
+      expect(url.pathname).toBe("/");
+      expect(url.searchParams.get("lat")).toBe("-37.814");
+      expect(url.searchParams.get("lng")).toBe("144.963");
+      // A 5 km half-width box has corners ≈ 7.07 km out: 8 km covers it.
+      expect(url.searchParams.get("radiusKm")).toBe("8");
+      expect(url.searchParams.get("surface")).toBe("grass");
+      expect(url.searchParams.get("amenities")).toBe("toilets");
+      // An area has no place name.
+      expect(url.searchParams.get("place")).toBeNull();
+    });
+
+    it("asks the person to zoom in when the visible area is too wide to search", async () => {
+      server.use(searchHandler([{ items: [], totalCount: 0, nextCursor: null }]));
+      const user = userEvent.setup();
+      renderSearch();
+      await screen.findByText("No venues match this search.");
+      await user.click(screen.getByRole("button", { name: "Zoom out" })); // 20 km half-width: ≈ 28 km
+      expect(offer()).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Zoom out" })); // 40 km half-width: ≈ 57 km
+      expect(offer()).toBeNull();
+      expect(screen.getByText("Zoom in to search this area")).toBeVisible();
+    });
+
+    it("goes away on Recentre", async () => {
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+      const user = userEvent.setup();
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      await user.click(screen.getByRole("button", { name: "Zoom in" }));
+      await user.click(screen.getByRole("button", { name: "Recentre map" }));
+      expect(offer()).toBeNull();
+    });
+  });
+
+  describe("coming back to a search (3.6)", () => {
+    const KEY = "fieldfinder:search";
+    const CANONICAL = "lat=-37.814&lng=144.963";
+    // Centred on the test venues' location (-37.8, 144.96).
+    const SAVED_BOUNDS = { south: -37.9, west: 144.86, north: -37.7, east: 145.06 };
+
+    const percentLeft = (name: string) => parseFloat(marker(name).parentElement?.style.left ?? "NaN");
+    const percentTop = (name: string) => parseFloat(marker(name).parentElement?.style.top ?? "NaN");
+
+    function saveEntry(saved: Record<string, unknown>) {
+      window.history.replaceState({ __NA: true, [KEY]: saved }, "", "/");
+    }
+
+    it("puts the map back where the person left it, until Recentre", async () => {
+      saveEntry({ query: CANONICAL, bounds: SAVED_BOUNDS });
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+      const user = userEvent.setup();
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      expect(percentLeft("North Reserve, 1 pitch")).toBeCloseTo(50, 6);
+      expect(percentTop("North Reserve, 1 pitch")).toBeCloseTo(50, 6);
+      expect(screen.queryByRole("button", { name: "Search this area" })).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "Recentre map" }));
+      expect(percentLeft("North Reserve, 1 pitch")).not.toBeCloseTo(50, 1);
+    });
+
+    it("ignores a view saved for a different search", async () => {
+      saveEntry({ query: "lat=-37.7&lng=145", bounds: SAVED_BOUNDS });
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      expect(percentLeft("North Reserve, 1 pitch")).not.toBeCloseTo(50, 1);
+    });
+
+    it("loads as many venues as were showing in one request, then scrolls back", async () => {
+      const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+      saveEntry({ query: CANONICAL, loaded: 25, scrollY: 640 });
+      const asked: string[] = [];
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }], { asked }));
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      expect(asked).toEqual([`${CANONICAL}&limit=25`]);
+      await waitFor(() => {
+        expect(scrollTo).toHaveBeenCalledWith({ top: 640, behavior: "instant" });
+      });
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+    });
+
+    it("never asks for more than one page's worth", async () => {
+      saveEntry({ query: CANONICAL, loaded: 90 });
+      const asked: string[] = [];
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }], { asked }));
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      expect(asked).toEqual([`${CANONICAL}&limit=30`]);
+    });
+
+    it("saves the viewport and how many venues are loaded in this history entry", async () => {
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+      const user = userEvent.setup();
+      renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      await user.click(screen.getByRole("button", { name: "Zoom in" }));
+      flushSavedView();
+      const saved = (window.history.state as Record<string, { query: string; loaded: number; bounds: object }>)[KEY];
+      expect(saved?.query).toBe(CANONICAL);
+      expect(saved?.loaded).toBe(3);
+      expect(Object.keys(saved?.bounds ?? {}).sort()).toEqual(["east", "north", "south", "west"]);
     });
   });
 

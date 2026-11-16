@@ -81,3 +81,38 @@ export function mapAdapterKind(adapter: string | undefined, token: string | unde
 export function isPublicMapboxToken(token: string | undefined): token is string {
   return token !== undefined && /^pk\.[\w.-]+$/.test(token.trim());
 }
+
+// --- Search this area (T5, PR 3.6) ----------------------------------------------------------------
+// The API takes a centre and a radius, not a box, so "Search this area" searches the viewport's
+// centre with the smallest whole-km radius whose circle covers the whole viewport (1–50 km). A
+// viewport wider than that can't be searched as one area: the person is asked to zoom in.
+
+const EARTH_RADIUS_KM = 6371;
+
+/** Great-circle distance in km (haversine). */
+export function distanceKm(a: LatLng, b: LatLng): number {
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export function boundsCentre(b: MapBounds): LatLng {
+  return { lat: (b.south + b.north) / 2, lng: (b.west + b.east) / 2 };
+}
+
+export type AreaSearch = { kind: "search"; centre: LatLng; radiusKm: number } | { kind: "too-wide" };
+
+export function areaSearch(b: MapBounds, minKm: number, maxKm: number): AreaSearch {
+  const centre = boundsCentre(b);
+  const corners: LatLng[] = [
+    { lat: b.north, lng: b.east },
+    { lat: b.north, lng: b.west },
+    { lat: b.south, lng: b.east },
+    { lat: b.south, lng: b.west },
+  ];
+  const covering = Math.max(...corners.map((corner) => distanceKm(centre, corner)));
+  const radiusKm = Math.max(minKm, Math.ceil(covering));
+  return radiusKm > maxKm ? { kind: "too-wide" } : { kind: "search", centre, radiusKm };
+}

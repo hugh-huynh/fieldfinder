@@ -17,9 +17,18 @@ import { markerClassName, markerState, markerZIndex } from "../view";
 // - The view is fitted when the map starts and whenever `viewKey` changes, never on other renders, so
 //   "Show more" and highlighting don't move the map.
 // - Mapbox's attribution and logo stay on (its terms require them); rotation and pitch are off.
+// - After each move it reports the viewport (3.6). A move is the person's when Mapbox saw an input
+//   event (drag, scroll, pinch, keyboard) or it came from our zoom buttons (tagged `byUser`); fitting
+//   a view and keeping a chosen marker clear of its preview are not.
 
 const STYLE = "mapbox://styles/mapbox/streets-v12";
 const FIT = { padding: 48, maxZoom: 15 } as const;
+/** A restored viewport: exactly the saved box, no padding, no animation. */
+const EXACT = { padding: 0, duration: 0 } as const;
+/** Room kept between a chosen marker and the edge of the preview covering the map's top. */
+const CHOSEN_MARGIN_PX = 48;
+/** Tags our own zoom-button moves, so they count as the person's (eventData is merged into events). */
+const BY_USER = { byUser: true } as const;
 
 const toLngLatBounds = (b: MapBounds): [[number, number], [number, number]] => [
   [b.west, b.south],
@@ -46,20 +55,23 @@ export function MapboxMap({
   token,
   markers,
   bounds,
+  fit,
   viewKey,
   highlightedId,
   selectedId,
   onMarkerClick,
   onRecentre,
   onUnavailable,
+  onViewportChange,
+  chosenTopInset,
 }: MapAdapterProps & { token: string }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const entries = useRef(new Map<string, MarkerEntry>());
   // Latest props for long-lived listeners and the one-time setup, updated after each render.
-  const latest = useRef({ bounds, onMarkerClick, onUnavailable });
+  const latest = useRef({ bounds, fit, onMarkerClick, onUnavailable, onViewportChange });
   useEffect(() => {
-    latest.current = { bounds, onMarkerClick, onUnavailable };
+    latest.current = { bounds, fit, onMarkerClick, onUnavailable, onViewportChange };
   });
 
   // Create the map once.
@@ -74,7 +86,7 @@ export function MapboxMap({
         accessToken: token,
         style: STYLE,
         bounds: toLngLatBounds(latest.current.bounds),
-        fitBoundsOptions: FIT,
+        fitBoundsOptions: latest.current.fit === "exact" ? EXACT : FIT,
         dragRotate: false,
         pitchWithRotate: false,
         touchPitch: false,
@@ -95,6 +107,13 @@ export function MapboxMap({
     instance.on("error", () => {
       if (!loaded) latest.current.onUnavailable();
     });
+    instance.on("moveend", (event: { originalEvent?: unknown; byUser?: boolean }) => {
+      const b = instance.getBounds();
+      latest.current.onViewportChange(
+        { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() },
+        event.originalEvent !== undefined || event.byUser === true,
+      );
+    });
     map.current = instance;
     return () => {
       markersOnMap.clear();
@@ -108,8 +127,18 @@ export function MapboxMap({
   useEffect(() => {
     if (fittedKey.current === viewKey) return;
     fittedKey.current = viewKey;
-    map.current?.fitBounds(toLngLatBounds(bounds), FIT);
-  }, [viewKey, bounds]);
+    map.current?.fitBounds(toLngLatBounds(bounds), fit === "exact" ? EXACT : FIT);
+  }, [viewKey, bounds, fit]);
+
+  // A chosen marker under the preview card is panned down into view (3.6). Not the person's move.
+  useEffect(() => {
+    const instance = map.current;
+    const chosen = selectedId === null ? undefined : markers.find((m) => m.id === selectedId);
+    if (instance === null || chosen === undefined) return;
+    const { y } = instance.project([chosen.position.lng, chosen.position.lat]);
+    const clearOf = chosenTopInset + CHOSEN_MARGIN_PX;
+    if (y < clearOf) instance.panBy([0, y - clearOf]);
+  }, [selectedId, markers, chosenTopInset]);
 
   // Keep the markers in step with the loaded venues, in list order.
   useEffect(() => {
@@ -162,8 +191,8 @@ export function MapboxMap({
       <div ref={container} className="size-full" />
       <MapControls
         onRecentre={onRecentre}
-        onZoomIn={() => map.current?.zoomIn()}
-        onZoomOut={() => map.current?.zoomOut()}
+        onZoomIn={() => map.current?.zoomIn(undefined, BY_USER)}
+        onZoomOut={() => map.current?.zoomOut(undefined, BY_USER)}
       />
     </div>
   );

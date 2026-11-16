@@ -9,6 +9,7 @@ import HomePage from "./page";
 let search = "";
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(search),
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 beforeEach(() => {
@@ -39,6 +40,6 @@ describe("HomePage", () => {
 
   it("copes with a place without a label, and with bad or repeated parameters", async () => {
     await renderPage({ lat: ["-37.767", "1"], lng: "144.962", radiusKm: "999" });
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Soccer fields near the selected place");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Soccer fields in this area");
   });
 });

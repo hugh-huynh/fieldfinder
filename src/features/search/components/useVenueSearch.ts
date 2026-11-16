@@ -32,8 +32,12 @@ async function fetchPage(query: string, signal: AbortSignal): Promise<VenueSearc
   return (await res.json()) as VenueSearchResponse;
 }
 
-export function useVenueSearch(state: SearchState): ResultsState & { retry: () => void; showMore: () => void } {
-  const query = apiQueryString(state);
+export function useVenueSearch(
+  state: SearchState,
+  /** First-page size when restoring a list that had grown with "Show more" (PR 3.6). Later pages use the default. */
+  options: { firstPageLimit?: number } = {},
+): ResultsState & { retry: () => void; showMore: () => void } {
+  const query = apiQueryString(state, { limit: options.firstPageLimit });
   /** Bumped by Retry, so the same search can be asked again. */
   const [attempt, setAttempt] = useState(0);
   const key = query === null ? null : `${query}#${String(attempt)}`;

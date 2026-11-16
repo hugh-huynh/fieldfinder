@@ -7,7 +7,7 @@ import { MapPlaceholder, SearchLayout } from "@/features/search/components/Searc
 import { parseSearchState, type SearchLocation } from "@/features/search/state";
 
 // `/`: search results (spec §3). The heading follows the URL's place; the results list (3.3) and the
-// map (3.4) share one search, loaded on the client from GET /api/venues. The 3-snap sheet is 3.6.
+// map (3.4) share one search, loaded on the client from GET /api/venues. The 3-snap sheet is 3.8.
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -30,7 +30,10 @@ function ListColumn({ location, results }: { location: SearchLocation | null; re
   }
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink">Soccer fields near {location.label ?? "the selected place"}</h1>
+      <h1 className="text-2xl font-semibold text-ink">
+        {/* A place without a name is a "Search this area" search (3.6), or a hand-made link. */}
+        {location.label === null ? "Soccer fields in this area" : `Soccer fields near ${location.label}`}
+      </h1>
       {results}
     </div>
   );

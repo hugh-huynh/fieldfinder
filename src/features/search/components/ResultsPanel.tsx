@@ -16,10 +16,11 @@ import { VenueCard } from "./VenueCard";
 // "Show more venues" (D7: the map will show the loaded venues only). One polite status region
 // announces each outcome. After "Show more", focus moves to the first new venue so keyboard and
 // screen-reader users continue where the list grew. Pointing at a card (hover or keyboard focus)
-// highlights its marker on the map (PR 3.4).
+// highlights its marker on the map (PR 3.4). Coming back to this search via back/forward or reload,
+// the list scrolls back to where the person left it once the venues are in (3.6).
 
 export function ResultsPanel() {
-  const { state, results, setHighlightedId, clearHighlight } = useSearchResults();
+  const { state, saved, results, setHighlightedId, clearHighlight } = useSearchResults();
   const list = useRef<HTMLUListElement>(null);
   /** Index of the first venue a "Show more" will add; focused once it arrives. */
   const focusFrom = useRef<number | null>(null);
@@ -31,6 +32,14 @@ export function ResultsPanel() {
     focusFrom.current = null;
     list.current?.querySelectorAll<HTMLAnchorElement>(":scope > li h2 a")[from]?.focus();
   }, [count]);
+
+  // Once per return to this entry: the saved scroll position, after the venues have rendered.
+  const scrolledFor = useRef<typeof saved>(null);
+  useEffect(() => {
+    if (saved?.scrollY === undefined || results.status !== "ready" || scrolledFor.current === saved) return;
+    scrolledFor.current = saved;
+    window.scrollTo({ top: saved.scrollY, behavior: "instant" });
+  }, [saved, results.status]);
 
   const announcement =
     results.status === "loading"
