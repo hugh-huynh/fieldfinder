@@ -35,6 +35,13 @@ async function mockSuggest(page: Page): Promise<string[]> {
 }
 
 test.describe("search header", () => {
+  // These tests are about the header; results (3.3) get an empty answer, so no database is needed.
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/venues?**", (route) =>
+      route.fulfill({ json: { items: [], totalCount: 0, nextCursor: null } }),
+    );
+  });
+
   test("has exactly one search box and one Filters button, side by side, and no sideways scroll", async ({ page }) => {
     await page.goto("/");
     const box = page.getByRole("combobox", { name: "Search a suburb or place" });

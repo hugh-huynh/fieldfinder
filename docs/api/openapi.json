@@ -302,6 +302,9 @@
           },
           "image": {
             "$ref": "#/components/schemas/Media"
+          },
+          "pitchSummary": {
+            "$ref": "#/components/schemas/PitchSummary"
           }
         },
         "required": [
@@ -317,7 +320,8 @@
           "matchingPitchCount",
           "href",
           "amenities",
-          "image"
+          "image",
+          "pitchSummary"
         ]
       },
       "Amenities": {
@@ -455,6 +459,48 @@
           "displayOrder",
           "attribution"
         ]
+      },
+      "PitchSummary": {
+        "type": "object",
+        "properties": {
+          "surfaces": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "grass",
+                "synthetic",
+                "hybrid"
+              ]
+            },
+            "description": "Confirmed surfaces of its published pitches."
+          },
+          "formats": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "full",
+                "small_sided",
+                "training"
+              ]
+            },
+            "description": "Confirmed sizes of its published pitches."
+          },
+          "floodlights": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "True if any published pitch is confirmed lit; false only if all are confirmed unlit; else null."
+          }
+        },
+        "required": [
+          "surfaces",
+          "formats",
+          "floodlights"
+        ],
+        "description": "The venue's published pitches taken together, whatever the filters. Unconfirmed values are left out."
       },
       "VenueDetailResponse": {
         "type": "object",
@@ -1555,6 +1601,16 @@
                         "alt": "Main pitch at Wattlebird Reserve, looking north",
                         "displayOrder": 0,
                         "attribution": null
+                      },
+                      "pitchSummary": {
+                        "surfaces": [
+                          "grass",
+                          "synthetic"
+                        ],
+                        "formats": [
+                          "full"
+                        ],
+                        "floodlights": true
                       }
                     }
                   ],

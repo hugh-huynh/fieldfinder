@@ -4,10 +4,13 @@ import { z } from "zod";
 
 import { searchImages } from "@/features/media/public";
 import {
+  emptyPitchSummary,
   toAmenitiesDto,
+  toPitchSummaries,
   toVenueSummaryDto,
   type AmenitiesDto,
   type MediaDto,
+  type PitchSummaryDto,
   type VenueSummaryDto,
 } from "@/features/venues/dto";
 import { ApiError } from "@/lib/api/errors";
@@ -40,6 +43,8 @@ export interface VenueSearchResultDto extends VenueSummaryDto {
   amenities: AmenitiesDto;
   /** The venue's first published image, else one of its published pitches' (PR 2.12); null if none. */
   image: MediaDto | null;
+  /** What its published pitches have, whatever the filters (PR 3.3); unconfirmed values left out. */
+  pitchSummary: PitchSummaryDto;
 }
 
 export interface VenueSearchResponse {
@@ -117,10 +122,26 @@ export async function searchVenues(sql: Sql, query: SearchQuery, secret: string)
     }),
   );
 
+  // ...and what their published pitches have (surfaces, sizes, floodlights), for the cards.
+  const pitchRows =
+    ids.length === 0
+      ? []
+      : await sql`
+          select venue_id, surface, pitch_format, floodlights
+          from public.public_pitches_v
+          where venue_id = any(${ids}::uuid[])
+        `;
+  const pitchSummaries = toPitchSummaries(pitchRows);
+
   const images = await searchImages(sql, ids);
   const items = rows.map((row) => {
     const summary = toVenueSummaryDto(row);
-    return { ...summary, amenities: amenitiesById.get(summary.id) ?? {}, image: images.get(summary.id) ?? null };
+    return {
+      ...summary,
+      amenities: amenitiesById.get(summary.id) ?? {},
+      image: images.get(summary.id) ?? null,
+      pitchSummary: pitchSummaries.get(summary.id) ?? emptyPitchSummary(),
+    };
   });
 
   // Step 4: if there might be more results, hand out a new bookmark pointing at this page's last venue.

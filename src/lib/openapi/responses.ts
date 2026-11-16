@@ -2,7 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
-import type { MediaDto, VenueDetailDto, VenueSummaryDto } from "@/features/venues/dto";
+import type { MediaDto, PitchSummaryDto, VenueDetailDto, VenueSummaryDto } from "@/features/venues/dto";
 import { UNUSED_REASONS, type AdminMediaDto } from "@/features/media/admin-dto";
 import type { UnusedMediaPage } from "@/features/media/admin-service";
 import { RIGHTS_BASES } from "@/features/media/admin-schema";
@@ -90,8 +90,21 @@ const venueSummaryShape = {
   }),
 };
 
+const pitchSummary = z
+  .object({
+    surfaces: z.array(z.enum(SURFACES)).meta({ description: "Confirmed surfaces of its published pitches." }),
+    formats: z.array(z.enum(PITCH_FORMATS)).meta({ description: "Confirmed sizes of its published pitches." }),
+    floodlights: z.boolean().nullable().meta({
+      description: "True if any published pitch is confirmed lit; false only if all are confirmed unlit; else null.",
+    }),
+  })
+  .meta({
+    id: "PitchSummary",
+    description: "The venue's published pitches taken together, whatever the filters. Unconfirmed values are left out.",
+  });
+
 const venueSearchResult = z
-  .object({ ...venueSummaryShape, amenities, image: mediaSchema.nullable() })
+  .object({ ...venueSummaryShape, amenities, image: mediaSchema.nullable(), pitchSummary })
   .meta({ id: "VenueSearchResult" });
 
 export const venueSearchResponseSchema = z
@@ -302,7 +315,8 @@ type Shape<S extends z.ZodType> = z.output<S>;
 export type DriftChecks = [
   Check<Same<Shape<typeof errorSchema>, ApiErrorBody>>,
   Check<Same<Shape<typeof mediaSchema>, MediaDto>>,
-  Check<Same<Omit<Shape<typeof venueSearchResult>, "amenities" | "image">, VenueSummaryDto>>,
+  Check<Same<Omit<Shape<typeof venueSearchResult>, "amenities" | "image" | "pitchSummary">, VenueSummaryDto>>,
+  Check<Same<Shape<typeof pitchSummary>, PitchSummaryDto>>,
   Check<Same<Shape<typeof venueSearchResult>, VenueSearchResultDto>>,
   Check<Same<Shape<typeof venueSearchResponseSchema>, VenueSearchResponse>>,
   Check<Same<Shape<typeof venueDetail>, VenueDetailDto>>,

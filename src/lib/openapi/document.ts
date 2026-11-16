@@ -326,6 +326,7 @@ export function buildOpenApiDocument() {
                 href: "/venues/wattlebird-reserve",
                 amenities: exampleVenueDetail.amenities,
                 image: exampleMedia,
+                pitchSummary: { surfaces: ["grass", "synthetic"], formats: ["full"], floodlights: true },
               },
             ],
             totalCount: 1,
