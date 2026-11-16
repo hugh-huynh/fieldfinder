@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { server } from "../../../../tests/msw/server";
@@ -23,6 +24,38 @@ function setup(initialLabel = "", handler = suggestHandler()) {
 const options = () => screen.getAllByRole("option");
 
 describe("LocationSearch", () => {
+  describe("typing before the page has hydrated", () => {
+    function hydrateAfterTyping(initialLabel: string, typed: string) {
+      const container = document.createElement("div");
+      document.body.append(container);
+      container.innerHTML = renderToString(<LocationSearch initialLabel={initialLabel} onSelect={vi.fn()} />);
+      const raw = container.querySelector("input");
+      if (raw === null) throw new Error("no input");
+      raw.focus();
+      raw.value = typed; // the browser takes the keys; React isn't listening yet
+      render(<LocationSearch initialLabel={initialLabel} onSelect={vi.fn()} />, { container, hydrate: true });
+      return screen.getByRole("combobox", { name: "Search a suburb or place" });
+    }
+
+    it("isn't lost: the typed text gets suggestions once React takes over", async () => {
+      const asked: string[] = [];
+      server.use(suggestHandler({ asked }));
+      const input = hydrateAfterTyping("", "Brun");
+      expect(input).toHaveValue("Brun");
+      expect(await screen.findByRole("listbox")).toBeVisible();
+      expect(asked).toEqual(["Brun"]);
+    });
+
+    it("leaves an untouched box alone", async () => {
+      const asked: string[] = [];
+      server.use(suggestHandler({ asked }));
+      const input = hydrateAfterTyping("Brunswick, Victoria 3056", "Brunswick, Victoria 3056");
+      await new Promise((r) => setTimeout(r, 400));
+      expect(input).toHaveAttribute("aria-expanded", "false");
+      expect(asked).toEqual([]);
+    });
+  });
+
   it("is a labelled ARIA combobox that starts collapsed", () => {
     const { input } = setup();
     expect(input).toHaveAttribute("aria-autocomplete", "list");

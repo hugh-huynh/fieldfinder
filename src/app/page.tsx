@@ -1,11 +1,13 @@
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 
+import { SearchMap } from "@/features/map/components/SearchMap";
 import { ResultsPanel, ResultsSkeleton } from "@/features/search/components/ResultsPanel";
+import { SearchResultsProvider } from "@/features/search/components/SearchResultsContext";
 import { MapPlaceholder, SearchLayout } from "@/features/search/components/SearchLayout";
-import { parseSearchState } from "@/features/search/state";
+import { parseSearchState, type SearchLocation } from "@/features/search/state";
 
-// `/`: search results (spec §3). The heading follows the URL's place; the results list (3.3) loads
-// on the client from GET /api/venues. The map arrives with 3.4 and the 3-snap sheet with 3.6.
+// `/`: search results (spec §3). The heading follows the URL's place; the results list (3.3) and the
+// map (3.4) share one search, loaded on the client from GET /api/venues. The 3-snap sheet is 3.6.
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -17,31 +19,40 @@ function toUrlSearchParams(raw: Awaited<SearchParams>): URLSearchParams {
   return params;
 }
 
+function ListColumn({ location, results }: { location: SearchLocation | null; results: ReactNode }) {
+  if (location === null) {
+    return (
+      <div className="max-w-xl">
+        <h1 className="text-2xl font-semibold text-ink">Find a soccer field</h1>
+        <p className="mt-2 text-muted">Search a suburb or place to see public soccer fields nearby.</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold text-ink">Soccer fields near {location.label ?? "the selected place"}</h1>
+      {results}
+    </div>
+  );
+}
+
 export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
   const { location } = parseSearchState(toUrlSearchParams(await searchParams));
 
   return (
     <main>
-      <SearchLayout
-        map={<MapPlaceholder />}
-        list={
-          location === null ? (
-            <div className="max-w-xl">
-              <h1 className="text-2xl font-semibold text-ink">Find a soccer field</h1>
-              <p className="mt-2 text-muted">Search a suburb or place to see public soccer fields nearby.</p>
-            </div>
-          ) : (
-            <div>
-              <h1 className="text-2xl font-semibold text-ink">
-                Soccer fields near {location.label ?? "the selected place"}
-              </h1>
-              <Suspense fallback={<ResultsSkeleton />}>
-                <ResultsPanel />
-              </Suspense>
-            </div>
-          )
+      <Suspense
+        fallback={
+          <SearchLayout
+            map={<MapPlaceholder />}
+            list={<ListColumn location={location} results={<ResultsSkeleton />} />}
+          />
         }
-      />
+      >
+        <SearchResultsProvider>
+          <SearchLayout map={<SearchMap />} list={<ListColumn location={location} results={<ResultsPanel />} />} />
+        </SearchResultsProvider>
+      </Suspense>
     </main>
   );
 }
