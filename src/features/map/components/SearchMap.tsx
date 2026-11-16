@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Component, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { saveSearchView } from "@/features/search/history-state";
+import { saveSearchView, type SavedSearchView } from "@/features/search/history-state";
 import { MAX_RADIUS_KM, MIN_RADIUS_KM } from "@/features/search/query";
 import { useSearchResults } from "@/features/search/components/SearchResultsContext";
 import { MapPlaceholder } from "@/features/search/components/SearchLayout";
@@ -40,7 +40,8 @@ const PREVIEW_INSET_PX = 128;
 export function SearchMap() {
   const { state, search, saved, results, highlightedId, selectedId, toggleSelected } = useSearchResults();
   const router = useRouter();
-  const [recentred, setRecentred] = useState(0);
+  /** How many times Recentre was pressed, and the history entry's saved view it was last pressed on. */
+  const [recentred, setRecentred] = useState<{ count: number; on: SavedSearchView | null }>({ count: 0, on: null });
   const [unavailable, setUnavailable] = useState(false);
   /** Where the person moved the map to, for the view it was moved from. */
   const [moved, setMoved] = useState<{ viewKey: string; bounds: MapBounds } | null>(null);
@@ -58,11 +59,12 @@ export function SearchMap() {
       ),
     [centre, state.filters.radiusKm, markers],
   );
-  // Coming back to this search: the saved viewport, until Recentre asks for the search's own area.
-  const restored = recentred === 0 ? (saved?.bounds ?? null) : null;
+  // Coming back to this search: the saved viewport, until Recentre (on this history entry: `saved` is
+  // read afresh for each entry) asks for the search's own area.
+  const restored = saved !== null && recentred.on !== saved ? (saved.bounds ?? null) : null;
   const bounds = restored ?? searched;
   // A new view for each search (first the radius while loading, then its venues) and each Recentre.
-  const viewKey = `${search ?? "none"}|${results.status}|${String(recentred)}`;
+  const viewKey = `${search ?? "none"}|${results.status}|${String(recentred.count)}`;
 
   const chosen = items?.find((item) => item.id === selectedId) ?? null;
   const area = moved?.viewKey === viewKey ? areaSearch(moved.bounds, MIN_RADIUS_KM, MAX_RADIUS_KM) : null;
@@ -93,7 +95,7 @@ export function SearchMap() {
     selectedId,
     onMarkerClick: toggleSelected,
     onRecentre: () => {
-      setRecentred((n) => n + 1);
+      setRecentred(({ count }) => ({ count: count + 1, on: saved }));
     },
     onUnavailable: () => {
       setUnavailable(true);

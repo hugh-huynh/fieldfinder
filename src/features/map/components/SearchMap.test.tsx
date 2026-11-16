@@ -397,6 +397,33 @@ describe("SearchMap", () => {
       expect(percentLeft("North Reserve, 1 pitch")).not.toBeCloseTo(50, 1);
     });
 
+    it("still restores another history entry's view after Recentre was pressed on an earlier one", async () => {
+      server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+      const user = userEvent.setup();
+      const { rerender } = renderSearch();
+      await screen.findByRole("list", { name: "Venues" });
+      await user.click(screen.getByRole("button", { name: "Recentre map" }));
+      flushSavedView();
+
+      // Back/forward to another search whose entry saved a viewport (the component is kept).
+      search = "lat=-37.7&lng=145.0&place=Elsewhere";
+      window.history.replaceState(
+        { __NA: true, [KEY]: { query: "lat=-37.7&lng=145", bounds: SAVED_BOUNDS } },
+        "",
+        "/?b",
+      );
+      rerender(
+        <SearchResultsProvider>
+          <SearchMap />
+          <ResultsPanel />
+        </SearchResultsProvider>,
+      );
+      await waitFor(() => {
+        expect(percentLeft("North Reserve, 1 pitch")).toBeCloseTo(50, 6);
+      });
+      expect(percentTop("North Reserve, 1 pitch")).toBeCloseTo(50, 6);
+    });
+
     it("ignores a view saved for a different search", async () => {
       saveEntry({ query: "lat=-37.7&lng=145", bounds: SAVED_BOUNDS });
       server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));

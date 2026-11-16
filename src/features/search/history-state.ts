@@ -48,14 +48,19 @@ export function readSavedView(query: string | null): SavedSearchView | null {
   return parsed.success && parsed.data.query === query ? parsed.data : null;
 }
 
-let pending: { query: string; patch: Partial<Omit<SavedSearchView, "query">> } | null = null;
+/**
+ * A batched write, bound to the history entry it was made on (by its URL). If the person goes to
+ * another entry (browser Back/Forward) before it's written, it's dropped rather than written over
+ * that entry's own saved view.
+ */
+let pending: { query: string; href: string; patch: Partial<Omit<SavedSearchView, "query">> } | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 function flush() {
   timer = null;
   const next = pending;
   pending = null;
-  if (next === null) return;
+  if (next === null || next.href !== window.location.href) return;
   const state = currentState();
   const previous = savedSchema.safeParse(state[STATE_KEY]);
   const base = previous.success && previous.data.query === next.query ? previous.data : { query: next.query };
@@ -68,7 +73,11 @@ function flush() {
 
 /** Remember part of where the person is on `query`'s results (batched). */
 export function saveSearchView(query: string, patch: Partial<Omit<SavedSearchView, "query">>): void {
-  pending = pending?.query === query ? { query, patch: { ...pending.patch, ...patch } } : { query, patch };
+  const href = window.location.href;
+  pending =
+    pending?.query === query && pending.href === href
+      ? { query, href, patch: { ...pending.patch, ...patch } }
+      : { query, href, patch };
   timer ??= setTimeout(flush, WRITE_DELAY_MS);
 }
 

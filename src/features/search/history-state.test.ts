@@ -103,6 +103,27 @@ describe("saveSearchView", () => {
     expect(history.replaceState).toHaveBeenCalledTimes(1);
   });
 
+  it("drops a pending write if the person went to another history entry before it was written", () => {
+    saveSearchView(QUERY, { scrollY: 120 });
+    // Browser Back/Forward within the batching window: the destination keeps its own saved view.
+    const destination = { [KEY]: { query: "lat=1&lng=1", loaded: 20, scrollY: 50 } };
+    history.state = destination;
+    (window.location as { href: string }).href = "http://localhost/?y";
+    vi.advanceTimersByTime(300);
+    expect(history.replaceState).not.toHaveBeenCalled();
+    expect(history.state).toBe(destination);
+  });
+
+  it("doesn't merge a write from one history entry into the next entry's", () => {
+    saveSearchView(QUERY, { scrollY: 120, loaded: 30 });
+    (window.location as { href: string }).href = "http://localhost/?y";
+    saveSearchView(QUERY, { scrollY: 40 });
+    flushSavedView();
+    expect(history.replaceState).toHaveBeenCalledTimes(1);
+    expect(history.replaceState).toHaveBeenCalledWith(expect.anything(), "", "http://localhost/?y");
+    expect(stored()).toEqual({ query: QUERY, scrollY: 40 });
+  });
+
   it("shrugs off a browser that refuses the write", () => {
     history.replaceState.mockImplementation(() => {
       throw new Error("SecurityError: too many calls");
