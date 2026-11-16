@@ -1,27 +1,25 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-import { activeFilterCount, parseSearchState } from "../state";
+import { activeFilterCount } from "../state";
 
 import { editFilters, focusLocationSearch } from "./search-controls";
-import { useVenueSearch } from "./useVenueSearch";
+import { useSearchResults } from "./SearchResultsContext";
 import { VenueCard } from "./VenueCard";
 
 // The results list for the URL's search (spec §3, PR 3.3): loading skeletons, an error with Retry,
 // a no-results state offering "Edit filters" and "Search another area", the venue cards, and
 // "Show more venues" (D7: the map will show the loaded venues only). One polite status region
 // announces each outcome. After "Show more", focus moves to the first new venue so keyboard and
-// screen-reader users continue where the list grew.
+// screen-reader users continue where the list grew. Pointing at a card (hover or keyboard focus)
+// highlights its marker on the map (PR 3.4).
 
 export function ResultsPanel() {
-  const params = useSearchParams();
-  const state = parseSearchState(new URLSearchParams(params.toString()));
-  const results = useVenueSearch(state);
+  const { state, results, setHighlightedId, clearHighlight } = useSearchResults();
   const list = useRef<HTMLUListElement>(null);
   /** Index of the first venue a "Show more" will add; focused once it arrives. */
   const focusFrom = useRef<number | null>(null);
@@ -89,7 +87,24 @@ export function ResultsPanel() {
           </p>
           <ul ref={list} aria-label="Venues" className="mt-2 flex flex-col gap-2">
             {results.items.map((venue) => (
-              <li key={venue.id}>
+              // Hover and focus here only mirror the card onto its map marker (PR 3.4); the card's own
+              // link is the control, so the item itself takes no action.
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- reason: highlight-only, the link inside is the control
+              <li
+                key={venue.id}
+                onMouseEnter={() => {
+                  setHighlightedId(venue.id);
+                }}
+                onMouseLeave={() => {
+                  clearHighlight(venue.id);
+                }}
+                onFocus={() => {
+                  setHighlightedId(venue.id);
+                }}
+                onBlur={() => {
+                  clearHighlight(venue.id);
+                }}
+              >
                 <VenueCard venue={venue} />
               </li>
             ))}

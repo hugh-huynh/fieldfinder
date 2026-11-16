@@ -59,6 +59,18 @@ export function LocationSearch({ initialLabel, onSelect }: LocationSearchProps) 
     setActive(-1);
   }
 
+  // Text typed before the page finished hydrating never reached onChange (the input was there, React
+  // wasn't yet). Adopt it once, so the person's typing isn't silently ignored.
+  const input = useRef<HTMLInputElement>(null);
+  const firstLabel = useRef(initialLabel);
+  useEffect(() => {
+    const element = input.current;
+    if (element === null || element.value === firstLabel.current) return;
+    setValue(element.value);
+    setEdited(true);
+    setOpen(document.activeElement === element);
+  }, []);
+
   const { status, suggestions, settle } = useSuggestions(edited ? value : null);
   const expanded = open && suggestions.length > 0;
 
@@ -150,6 +162,7 @@ export function LocationSearch({ initialLabel, onSelect }: LocationSearchProps) 
       <div className="flex min-h-12 items-center gap-2 rounded-pill border border-border-strong bg-surface px-4 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus">
         <SearchIcon className="size-5 shrink-0 text-muted" />
         <input
+          ref={input}
           id={id}
           type="text"
           role="combobox"

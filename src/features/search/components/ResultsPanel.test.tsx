@@ -6,6 +6,7 @@ import { server } from "../../../../tests/msw/server";
 import { searchHandler, venueResult } from "../../../../tests/msw/venues";
 
 import { ResultsPanel } from "./ResultsPanel";
+import { SearchResultsProvider } from "./SearchResultsContext";
 
 // Results list (PR 3.3) against a mocked GET /api/venues: loading, results, error + Retry, no
 // results, Show more, and stale answers.
@@ -35,7 +36,7 @@ describe("ResultsPanel", () => {
     const asked: string[] = [];
     search = "surface=grass&place=Melbourne&lng=144.963&lat=-37.814&utm_source=x";
     server.use(searchHandler([page([1, 2], 2, null)], { asked, wait: 50 }));
-    render(<ResultsPanel />);
+    render(<ResultsPanel />, { wrapper: SearchResultsProvider });
     expect(screen.getByRole("status")).toHaveTextContent("Loading venues…");
     expect(await screen.findByRole("list", { name: "Venues" })).toBeInTheDocument();
     expect(venueNames()).toEqual(["Test Venue 1", "Test Venue 2"]);
@@ -48,7 +49,7 @@ describe("ResultsPanel", () => {
     const asked: string[] = [];
     server.use(searchHandler([], { asked, status: 500 }));
     const user = userEvent.setup();
-    render(<ResultsPanel />);
+    render(<ResultsPanel />, { wrapper: SearchResultsProvider });
     expect(await screen.findByText("Couldn't load venues.", { selector: "p:not([role])" })).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Couldn't load venues.");
 
@@ -77,6 +78,7 @@ describe("ResultsPanel", () => {
           </div>
           <ResultsPanel />
         </>,
+        { wrapper: SearchResultsProvider },
       );
     }
 
@@ -105,7 +107,7 @@ describe("ResultsPanel", () => {
     const asked: string[] = [];
     server.use(searchHandler([page([1, 2], 4, "c1"), { ...page([2, 3], 4, "c2") }, page([4], 4, null)], { asked }));
     const user = userEvent.setup();
-    render(<ResultsPanel />);
+    render(<ResultsPanel />, { wrapper: SearchResultsProvider });
     await screen.findByRole("list", { name: "Venues" });
     expect(screen.getByText("Showing 2 of 4")).toBeInTheDocument();
 
@@ -126,7 +128,7 @@ describe("ResultsPanel", () => {
   it("keeps the list and offers to try again when Show more fails", async () => {
     server.use(searchHandler([page([1, 2], 3, "c1")]));
     const user = userEvent.setup();
-    render(<ResultsPanel />);
+    render(<ResultsPanel />, { wrapper: SearchResultsProvider });
     await screen.findByRole("list", { name: "Venues" });
     server.use(searchHandler([], { status: 503 }));
     await user.click(screen.getByRole("button", { name: "Show more venues" }));
@@ -150,7 +152,7 @@ describe("ResultsPanel", () => {
         return HttpResponse.json(page(grass ? [9] : [1], 1, null));
       }),
     );
-    const { rerender } = render(<ResultsPanel />);
+    const { rerender } = render(<ResultsPanel />, { wrapper: SearchResultsProvider });
     search += "&surface=grass";
     act(() => {
       rerender(<ResultsPanel />);

@@ -48,4 +48,13 @@ describe("securityHeaders", () => {
       );
     });
   });
+
+  it("lets the map reach Mapbox and nothing else new (PR 3.4)", () => {
+    const csp = header("Content-Security-Policy-Report-Only") ?? "";
+    expect(csp).toContain(
+      "connect-src 'self' https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com",
+    );
+    expect(csp).toContain("worker-src 'self' blob:");
+    expect(csp).not.toMatch(/script-src[^;]*mapbox/);
+  });
 });

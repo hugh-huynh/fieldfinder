@@ -43,5 +43,8 @@ export default defineConfig({
         url: baseURL,
         reuseExistingServer: !isCI,
         timeout: 180_000,
+        // The WebGL-free stand-in map (PR 3.4): no token or network. NEXT_PUBLIC_ values are baked in at
+        // build time, so this only takes effect when this command builds (locally).
+        env: { NEXT_PUBLIC_MAP_ADAPTER: "fake" },
       },
 });
