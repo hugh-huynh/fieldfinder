@@ -77,6 +77,10 @@ export function MarkerPreview({ venue, onClose }: { venue: VenueSearchResultDto;
           {pitchCountLabel(venue.publishedPitchCount, venue.matchingPitchCount)} ·{" "}
           {formatDistance(venue.distanceMeters)}
         </p>
+        {/* A photo whose licence needs a credit carries it wherever it's shown (ADR-0006). */}
+        {image?.attribution ? (
+          <p className="mt-0.5 text-[0.6875rem] break-words text-muted">Photo: {image.attribution.text}</p>
+        ) : null}
       </div>
       {/* Above the stretched link, so it closes rather than navigates. */}
       <button
