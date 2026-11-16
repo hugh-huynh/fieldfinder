@@ -1,7 +1,16 @@
 import { z } from "zod";
 
 import { dbNumber, dbTimestamp } from "@/lib/db/row-types";
-import { ACCESS_CLASSES, AMENITY_KEYS, type AccessClass, type AmenityKey } from "@/lib/domain/enums";
+import {
+  ACCESS_CLASSES,
+  AMENITY_KEYS,
+  PITCH_FORMATS,
+  SURFACES,
+  type AccessClass,
+  type AmenityKey,
+  type PitchFormat,
+  type Surface,
+} from "@/lib/domain/enums";
 
 import { venueRouteTarget } from "./route-target";
 
@@ -61,6 +70,56 @@ export function toVenueSummaryDto(row: unknown): VenueSummaryDto {
     // search_venues() returns the slug only when the venue has exactly one published pitch.
     href: venueRouteTarget(r.slug, r.single_pitch_slug === null ? [] : [r.single_pitch_slug]),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Search results: what a venue's published pitches have (PR 3.3), from public_pitches_v
+// ---------------------------------------------------------------------------
+
+const pitchSummaryRow = z.object({
+  venue_id: z.uuid(),
+  surface: z.enum(SURFACES).nullable(),
+  pitch_format: z.enum(PITCH_FORMATS).nullable(),
+  floodlights: z.boolean().nullable(),
+});
+
+/**
+ * The venue's published pitches taken together, whatever the search filters (Hugh, 2026-11-16).
+ * Only confirmed values are listed; an unconfirmed attribute is left out, never guessed.
+ */
+export interface PitchSummaryDto {
+  /** Confirmed surfaces, in SURFACES order, each once. Empty = none confirmed. */
+  surfaces: Surface[];
+  /** Confirmed pitch sizes, in PITCH_FORMATS order, each once. Empty = none confirmed. */
+  formats: PitchFormat[];
+  /** True if any pitch is confirmed lit; false only if every pitch is confirmed unlit; else null. */
+  floodlights: boolean | null;
+}
+
+export function emptyPitchSummary(): PitchSummaryDto {
+  return { surfaces: [], formats: [], floodlights: null };
+}
+
+/** Rows of public_pitches_v (published pitches only) → each venue's summary, by venue id. */
+export function toPitchSummaries(rows: readonly unknown[]): Map<string, PitchSummaryDto> {
+  const byVenue = new Map<string, z.output<typeof pitchSummaryRow>[]>();
+  for (const row of rows) {
+    const r = pitchSummaryRow.parse(row);
+    byVenue.set(r.venue_id, [...(byVenue.get(r.venue_id) ?? []), r]);
+  }
+  return new Map(
+    [...byVenue].map(([venueId, pitches]) => {
+      const lights = pitches.map((p) => p.floodlights);
+      return [
+        venueId,
+        {
+          surfaces: SURFACES.filter((s) => pitches.some((p) => p.surface === s)),
+          formats: PITCH_FORMATS.filter((f) => pitches.some((p) => p.pitch_format === f)),
+          floodlights: lights.includes(true) ? true : lights.every((l) => l === false) ? false : null,
+        },
+      ] as const;
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------

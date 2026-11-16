@@ -66,7 +66,8 @@ curl -s "$FF/api/venues?lat=-37.814&lng=144.963&radiusKm=15&surface=grass&amenit
       "matchingPitchCount": 1,
       "href": "/venues/wattlebird-reserve",
       "amenities": { "parking": "yes", "toilets": "yes", "cafe": "no" },
-      "image": null
+      "image": null,
+      "pitchSummary": { "surfaces": ["grass"], "formats": ["full", "small_sided"], "floodlights": true }
     }
   ],
   "totalCount": 1,
@@ -75,7 +76,7 @@ curl -s "$FF/api/venues?lat=-37.814&lng=144.963&radiusKm=15&surface=grass&amenit
 ```
 
 - `lat` and `lng` are required. `radiusKm` is 1–50 (default 10), `limit` 1–30 (default 20).
-- Pitch filters (`surface`, `pitchSize`, `lighting`, `access`) must all be met by **the same pitch**. `matchingPitchCount` says how many pitches do. `amenities` are venue-level and all must be `"yes"`.
+- Pitch filters (`surface`, `pitchSize`, `lighting`, `access`) must all be met by **the same pitch**. `matchingPitchCount` says how many pitches do. `amenities` are venue-level and all must be `"yes"`. `pitchSummary` describes **all** the venue's published pitches, whatever the filters: the confirmed surfaces and sizes, and `floodlights` (`true` if any pitch is confirmed lit, `false` only if every pitch is confirmed unlit, otherwise `null`).
 - Results are nearest first. `distanceMeters` is measured from the search centre after rounding.
 - **Canonical URLs.** Coordinates are rounded to 3 decimal places, and any other spelling of the same search (different parameter order, defaults written out, extra digits) gets a **308** to the canonical URL. Build URLs in canonical form to save the round trip: parameters in the order `lat, lng, radiusKm, surface, pitchSize, lighting, access, amenities, limit, cursor`; defaults left out; amenities in the order `parking, toilets, changing_rooms, drinking_water, cafe, public_transport`.
 - **Paging.** Pass `nextCursor` back as `cursor` with the same filters. A cursor from a different search is a 400.

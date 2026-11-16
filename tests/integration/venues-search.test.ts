@@ -105,6 +105,29 @@ describe("GET /api/venues — results", () => {
     expect(wattlebird?.amenities).toEqual({ parking: "yes", toilets: "yes", cafe: "no" });
   });
 
+  it("summarises every published pitch, whatever the filters, leaving out drafts and unknowns (PR 3.3)", async () => {
+    const all = await search(`${BASE}&radiusKm=50&limit=30`);
+    const summaryOf = (body: VenueSearchResponse, index: number) =>
+      body.items.find((item) => item.slug === slugOf(index))?.pitchSummary;
+
+    // Ironbark: A synthetic/full/unlit, B grass/full/lit, C hybrid/small-sided/lit, D nothing confirmed.
+    const ironbark = {
+      surfaces: ["grass", "synthetic", "hybrid"],
+      formats: ["full", "small_sided"],
+      floodlights: true,
+    };
+    expect(summaryOf(all, 2)).toEqual(ironbark);
+    // Banksia's: the draft synthetic pitch is left out; its one published pitch is confirmed unlit.
+    expect(summaryOf(all, 3)).toEqual({ surfaces: ["grass"], formats: ["small_sided"], floodlights: false });
+    // Paperbark: one published pitch with nothing confirmed.
+    expect(summaryOf(all, 7)).toEqual({ surfaces: [], formats: [], floodlights: null });
+
+    // A filter narrows the matching count, not the summary.
+    const hybrid = await search(`${BASE}&radiusKm=50&surface=hybrid`);
+    expect(summaryOf(hybrid, 2)).toEqual(ironbark);
+    expect(hybrid.items.find((item) => item.slug === slugOf(2))?.matchingPitchCount).toBe(1);
+  });
+
   it("returns an empty page, not an error, when nothing matches", async () => {
     const body = await search(`${BASE}&radiusKm=1`);
     expect(body).toEqual({ items: [], totalCount: 0, nextCursor: null });
@@ -127,6 +150,7 @@ describe("GET /api/venues — results", () => {
         "location",
         "matchingPitchCount",
         "name",
+        "pitchSummary",
         "publishedPitchCount",
         "slug",
         "state",

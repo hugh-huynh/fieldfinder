@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 
 import { keyPaths, seededRandom, SENTINEL, withRandomExtras } from "../../../tests/support/random";
 
-import { toAmenitiesDto, toMediaDto, toVenueDetailDto, toVenueSummaryDto } from "./dto";
+import { toAmenitiesDto, toMediaDto, toPitchSummaries, toVenueDetailDto, toVenueSummaryDto } from "./dto";
 
 const ID = "5eed0000-0000-4000-8000-000000000001";
 const PITCH_ID = "5eed0000-0000-4000-8001-000000000001";
@@ -211,5 +211,54 @@ describe("toMediaDto", () => {
 
   it("rejects content types other than the re-encoded formats", () => {
     expect(() => toMediaDto({ ...mediaRow, content_type: "image/svg+xml" }, url)).toThrow(ZodError);
+  });
+});
+
+describe("toPitchSummaries (PR 3.3)", () => {
+  const V1 = "5eed0000-0000-4000-8000-000000000001";
+  const V2 = "5eed0000-0000-4000-8000-000000000002";
+  const row = (venue: string, surface: string | null, format: string | null, floodlights: boolean | null) => ({
+    venue_id: venue,
+    surface,
+    pitch_format: format,
+    floodlights,
+  });
+
+  it("lists each confirmed surface and size once, in enum order, per venue", () => {
+    const summaries = toPitchSummaries([
+      row(V1, "hybrid", "training", null),
+      row(V1, "grass", "full", null),
+      row(V1, "grass", "full", null),
+      row(V2, "synthetic", "small_sided", null),
+    ]);
+    expect(summaries.get(V1)).toEqual({
+      surfaces: ["grass", "hybrid"],
+      formats: ["full", "training"],
+      floodlights: null,
+    });
+    expect(summaries.get(V2)).toEqual({ surfaces: ["synthetic"], formats: ["small_sided"], floodlights: null });
+  });
+
+  it("leaves unconfirmed values out instead of guessing", () => {
+    expect(toPitchSummaries([row(V1, null, null, null)]).get(V1)).toEqual({
+      surfaces: [],
+      formats: [],
+      floodlights: null,
+    });
+  });
+
+  it.each([
+    ["any confirmed lit pitch", [true, false, null], true],
+    ["every pitch confirmed unlit", [false, false], false],
+    ["unlit and unconfirmed", [false, null], null],
+    ["nothing confirmed", [null], null],
+  ] as const)("floodlights: %s → %s", (_name, lights, expected) => {
+    const rows = lights.map((light) => row(V1, null, null, light));
+    expect(toPitchSummaries(rows).get(V1)?.floodlights).toBe(expected);
+  });
+
+  it("has no entry for a venue with no rows, and rejects unknown values", () => {
+    expect(toPitchSummaries([]).size).toBe(0);
+    expect(() => toPitchSummaries([row(V1, "astroturf", null, null)])).toThrow();
   });
 });
