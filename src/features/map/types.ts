@@ -57,10 +57,12 @@ export interface MapAdapterProps {
    */
   onViewportChange: (bounds: MapBounds, byUser: boolean) => void;
   /**
-   * Pixels at the top of the map covered while a marker is chosen (its preview card). The real map
-   * pans a chosen marker out from under them (3.6).
+   * Pixels of the map covered on each side: the preview card while a marker is chosen, the mobile
+   * results sheet (3.8) and the map's own controls. Fitted views leave room for them, and the real
+   * map pans a chosen marker out from under the top and bottom (3.6). Read when needed, so dragging
+   * the sheet never moves the map.
    */
-  chosenTopInset: number;
+  obscured: { top: number; bottom: number; left: number; right: number };
 }
 
 export type MapAdapter = ComponentType<MapAdapterProps>;

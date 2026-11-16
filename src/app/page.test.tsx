@@ -29,7 +29,9 @@ describe("HomePage", () => {
     const headings = screen.getAllByRole("heading", { level: 1 });
     expect(headings).toHaveLength(1);
     expect(headings[0]).toHaveTextContent("Find a soccer field");
-    expect(screen.queryByRole("status")).toBeNull(); // no search, so no results panel
+    // No search, so no results panel (the sheet's own size announcements start empty).
+    expect(screen.queryByText("Loading venues…")).toBeNull();
+    expect(screen.queryByRole("list", { name: "Venues" })).toBeNull();
   });
 
   it("names the URL's place", async () => {

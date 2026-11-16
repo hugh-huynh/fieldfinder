@@ -22,7 +22,21 @@ import { markerClassName, markerState, markerZIndex } from "../view";
 //   a view and keeping a chosen marker clear of its preview are not.
 
 const STYLE = "mapbox://styles/mapbox/streets-v12";
-const FIT = { padding: 48, maxZoom: 15 } as const;
+const FIT_PADDING_PX = 48;
+const FIT_MAX_ZOOM = 15;
+
+/** A search's area, fitted with room around it and clear of whatever covers the map. */
+function padded(obscured: MapAdapterProps["obscured"]) {
+  return {
+    padding: {
+      top: FIT_PADDING_PX + obscured.top,
+      bottom: FIT_PADDING_PX + obscured.bottom,
+      left: FIT_PADDING_PX + obscured.left,
+      right: FIT_PADDING_PX + obscured.right,
+    },
+    maxZoom: FIT_MAX_ZOOM,
+  };
+}
 /** A restored viewport: exactly the saved box, no padding, no animation. */
 const EXACT = { padding: 0, duration: 0 } as const;
 /** Room kept between a chosen marker and the edge of the preview covering the map's top. */
@@ -63,15 +77,15 @@ export function MapboxMap({
   onRecentre,
   onUnavailable,
   onViewportChange,
-  chosenTopInset,
+  obscured,
 }: MapAdapterProps & { token: string }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const entries = useRef(new Map<string, MarkerEntry>());
   // Latest props for long-lived listeners and the one-time setup, updated after each render.
-  const latest = useRef({ bounds, fit, onMarkerClick, onUnavailable, onViewportChange });
+  const latest = useRef({ bounds, fit, markers, onMarkerClick, onUnavailable, onViewportChange, obscured });
   useEffect(() => {
-    latest.current = { bounds, fit, onMarkerClick, onUnavailable, onViewportChange };
+    latest.current = { bounds, fit, markers, onMarkerClick, onUnavailable, onViewportChange, obscured };
   });
 
   // Create the map once.
@@ -86,7 +100,7 @@ export function MapboxMap({
         accessToken: token,
         style: STYLE,
         bounds: toLngLatBounds(latest.current.bounds),
-        fitBoundsOptions: latest.current.fit === "exact" ? EXACT : FIT,
+        fitBoundsOptions: latest.current.fit === "exact" ? EXACT : padded(latest.current.obscured),
         dragRotate: false,
         pitchWithRotate: false,
         touchPitch: false,
@@ -127,18 +141,22 @@ export function MapboxMap({
   useEffect(() => {
     if (fittedKey.current === viewKey) return;
     fittedKey.current = viewKey;
-    map.current?.fitBounds(toLngLatBounds(bounds), fit === "exact" ? EXACT : FIT);
+    map.current?.fitBounds(toLngLatBounds(bounds), fit === "exact" ? EXACT : padded(latest.current.obscured));
   }, [viewKey, bounds, fit]);
 
-  // A chosen marker under the preview card is panned down into view (3.6). Not the person's move.
+  // A chosen marker under the preview card or the mobile sheet is panned into view (3.6, 3.8). Not
+  // the person's move. Only when a marker is chosen: dragging the sheet never moves the map.
   useEffect(() => {
     const instance = map.current;
-    const chosen = selectedId === null ? undefined : markers.find((m) => m.id === selectedId);
+    const chosen = selectedId === null ? undefined : latest.current.markers.find((m) => m.id === selectedId);
     if (instance === null || chosen === undefined) return;
+    const { top, bottom } = latest.current.obscured;
     const { y } = instance.project([chosen.position.lng, chosen.position.lat]);
-    const clearOf = chosenTopInset + CHOSEN_MARGIN_PX;
-    if (y < clearOf) instance.panBy([0, y - clearOf]);
-  }, [selectedId, markers, chosenTopInset]);
+    const highest = top + CHOSEN_MARGIN_PX;
+    const lowest = instance.getContainer().clientHeight - bottom - CHOSEN_MARGIN_PX;
+    if (y < highest) instance.panBy([0, y - highest]);
+    else if (y > lowest && lowest > highest) instance.panBy([0, y - lowest]);
+  }, [selectedId]);
 
   // Keep the markers in step with the loaded venues, in list order.
   useEffect(() => {
@@ -185,9 +203,9 @@ export function MapboxMap({
   }, [markers, highlightedId, selectedId]);
 
   return (
-    // Below lg the results sheet overlaps the map's bottom edge by 1rem (SearchLayout), so Mapbox's
-    // logo and attribution are lifted clear of it: its terms require them to stay visible.
-    <div className="relative size-full [&_.mapboxgl-ctrl-bottom-left]:bottom-4 lg:[&_.mapboxgl-ctrl-bottom-left]:bottom-0 [&_.mapboxgl-ctrl-bottom-right]:bottom-4 lg:[&_.mapboxgl-ctrl-bottom-right]:bottom-0">
+    // Below lg the results sheet covers the map's bottom (--sheet-h, SearchLayout), so Mapbox's logo
+    // and attribution sit just above it: its terms require them to stay visible.
+    <div className="relative size-full [&_.mapboxgl-ctrl-bottom-left]:bottom-(--sheet-h) lg:[&_.mapboxgl-ctrl-bottom-left]:bottom-0 [&_.mapboxgl-ctrl-bottom-right]:bottom-(--sheet-h) lg:[&_.mapboxgl-ctrl-bottom-right]:bottom-0">
       <div ref={container} className="size-full" />
       <MapControls
         onRecentre={onRecentre}

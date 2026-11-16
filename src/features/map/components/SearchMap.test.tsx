@@ -433,11 +433,24 @@ describe("SearchMap", () => {
     });
 
     it("loads as many venues as were showing in one request, then scrolls back", async () => {
-      const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
       saveEntry({ query: CANONICAL, loaded: 25, scrollY: 640 });
       const asked: string[] = [];
       server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }], { asked }));
-      renderSearch();
+      // The list scrolls in its own container (SearchLayout marks it); jsdom can't scroll, so spy.
+      const scrollTo = vi.fn();
+      render(
+        <SearchResultsProvider>
+          <SearchMap />
+          <div
+            data-results-scroller=""
+            ref={(element) => {
+              if (element !== null) element.scrollTo = scrollTo;
+            }}
+          >
+            <ResultsPanel />
+          </div>
+        </SearchResultsProvider>,
+      );
       await screen.findByRole("list", { name: "Venues" });
       expect(asked).toEqual([`${CANONICAL}&limit=25`]);
       await waitFor(() => {

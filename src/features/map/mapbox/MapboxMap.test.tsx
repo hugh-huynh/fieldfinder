@@ -19,6 +19,7 @@ const gl = vi.hoisted(() => {
     readonly handlers = new Map<string, Handler[]>();
     readonly fitBounds = vi.fn();
     readonly panBy = vi.fn();
+    readonly getContainer = vi.fn(() => ({ clientHeight: 600 }));
     /** Screen position the stand-in reports for any point (set per test). */
     projected = { x: 100, y: 300 };
     readonly project = vi.fn(() => this.projected);
@@ -92,7 +93,7 @@ function props(overrides: Partial<MapAdapterProps> = {}): MapAdapterProps & { to
     onUnavailable: vi.fn(),
     fit: "padded",
     onViewportChange: vi.fn(),
-    chosenTopInset: 0,
+    obscured: { top: 0, bottom: 0, left: 0, right: 0 },
     ...overrides,
   };
 }
@@ -176,7 +177,7 @@ describe("MapboxMap", () => {
         [144.9, -37.9],
         [145.1, -37.6],
       ],
-      { padding: 48, maxZoom: 15 },
+      { padding: { top: 48, bottom: 48, left: 48, right: 48 }, maxZoom: 15 },
     );
   });
 
@@ -265,13 +266,13 @@ describe("MapboxMap", () => {
     it("pans a chosen marker out from under the preview, and leaves one already clear alone", () => {
       const { rerender } = render(<MapboxMap {...props()} />);
       glMap().projected = { x: 100, y: 60 };
-      rerender(<MapboxMap {...props({ selectedId: "v1", chosenTopInset: 128 })} />);
+      rerender(<MapboxMap {...props({ selectedId: "v1", obscured: { top: 128, bottom: 0, left: 0, right: 0 } })} />);
       // 60 px down, needs to be 128 + 48 = 176: move the content 116 px down.
       expect(glMap().panBy).toHaveBeenCalledWith([0, -116]);
 
       glMap().panBy.mockClear();
       glMap().projected = { x: 100, y: 400 };
-      rerender(<MapboxMap {...props({ selectedId: "v2", chosenTopInset: 128 })} />);
+      rerender(<MapboxMap {...props({ selectedId: "v2", obscured: { top: 128, bottom: 0, left: 0, right: 0 } })} />);
       expect(glMap().panBy).not.toHaveBeenCalled();
     });
   });

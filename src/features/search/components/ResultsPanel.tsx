@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { activeFilterCount } from "../state";
 
 import { editFilters, focusLocationSearch } from "./search-controls";
-import { useSearchResults } from "./SearchResultsContext";
+import { resultsScroller, useSearchResults } from "./SearchResultsContext";
 import { VenueCard } from "./VenueCard";
 
 // The results list for the URL's search (spec §3, PR 3.3): loading skeletons, an error with Retry,
@@ -38,7 +38,7 @@ export function ResultsPanel() {
   useEffect(() => {
     if (saved?.scrollY === undefined || results.status !== "ready" || scrolledFor.current === saved) return;
     scrolledFor.current = saved;
-    window.scrollTo({ top: saved.scrollY, behavior: "instant" });
+    resultsScroller()?.scrollTo({ top: saved.scrollY, behavior: "instant" });
   }, [saved, results.status]);
 
   const announcement =
