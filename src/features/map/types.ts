@@ -34,6 +34,11 @@ export interface MapAdapterProps {
   // SearchMap can return focus to it when its preview closes.
   /** The area to show. Applied when the map starts and whenever `viewKey` changes, not on every render. */
   bounds: MapBounds;
+  /**
+   * "padded": fit a search's area with room around it. "exact": show exactly `bounds`, no animation
+   * (a viewport restored from history, PR 3.6).
+   */
+  fit: "padded" | "exact";
   /** Changes for a new search (once its first page arrives) and on Recentre; not on "Show more". */
   viewKey: string;
   /** The marker for the card under the pointer or keyboard focus in the list. */
@@ -45,6 +50,17 @@ export interface MapAdapterProps {
   onRecentre: () => void;
   /** The map can't be shown (no WebGL, bad token, style failed to load). */
   onUnavailable: () => void;
+  /**
+   * The visible area after each move settles (3.6). `byUser` is true for the person's own moves
+   * (drag, scroll, pinch, keyboard, the zoom buttons) and false for fitting a view, so only those
+   * offer "Search this area".
+   */
+  onViewportChange: (bounds: MapBounds, byUser: boolean) => void;
+  /**
+   * Pixels at the top of the map covered while a marker is chosen (its preview card). The real map
+   * pans a chosen marker out from under them (3.6).
+   */
+  chosenTopInset: number;
 }
 
 export type MapAdapter = ComponentType<MapAdapterProps>;

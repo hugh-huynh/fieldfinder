@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { venueResult } from "../../../tests/msw/venues";
 
 import {
+  areaSearch,
+  distanceKm,
   isPublicMapboxToken,
   mapAdapterKind,
   markerClassName,
@@ -106,4 +108,33 @@ describe("mapAdapterKind", () => {
       expect(isPublicMapboxToken(token)).toBe(false);
     },
   );
+});
+
+describe("areaSearch (T5)", () => {
+  it("measures distance on the globe", () => {
+    // One degree of latitude is about 111.2 km anywhere.
+    expect(distanceKm({ lat: -37, lng: 145 }, { lat: -38, lng: 145 })).toBeCloseTo(111.19, 1);
+    expect(distanceKm(melbourne, melbourne)).toBe(0);
+  });
+
+  it("searches the viewport's centre with the whole-km radius whose circle covers it", () => {
+    const viewport = radiusBounds(melbourne, 3); // corners are 3·√2 ≈ 4.24 km from the centre
+    const area = areaSearch(viewport, 1, 50);
+    expect(area.kind).toBe("search");
+    if (area.kind !== "search") return;
+    expect(area.centre.lat).toBeCloseTo(melbourne.lat, 9);
+    expect(area.centre.lng).toBeCloseTo(melbourne.lng, 9);
+    expect(area.radiusKm).toBe(5);
+  });
+
+  it("never goes below the smallest radius", () => {
+    const tiny = { south: -37.8141, west: 144.9629, north: -37.8139, east: 144.9631 };
+    expect(areaSearch(tiny, 1, 50)).toMatchObject({ kind: "search", radiusKm: 1 });
+  });
+
+  it("asks to zoom in when the viewport is wider than the largest radius covers", () => {
+    // Corners at 36·√2 ≈ 50.9 km need 51 km: too wide. At 35·√2 ≈ 49.5 km, 50 km still covers it.
+    expect(areaSearch(radiusBounds(melbourne, 36), 1, 50)).toEqual({ kind: "too-wide" });
+    expect(areaSearch(radiusBounds(melbourne, 35), 1, 50)).toMatchObject({ kind: "search", radiusKm: 50 });
+  });
 });

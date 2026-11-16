@@ -1,8 +1,10 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { flushSavedView, readSavedView, saveSearchView, type SavedSearchView } from "../history-state";
+import { DEFAULT_LIMIT, MAX_LIMIT } from "../query";
 import { apiQueryString, parseSearchState, type SearchState } from "../state";
 
 import { useVenueSearch } from "./useVenueSearch";
@@ -11,9 +13,17 @@ import { useVenueSearch } from "./useVenueSearch";
 // PR 3.4). The provider loads the URL's search once; the list renders the venues and the map renders
 // their markers (D7: loaded venues only). It also holds which venue the list is pointing at
 // (hover/focus highlights its marker) and which marker the person chose on the map.
+//
+// History (PR 3.6): it reads what was saved in this history entry for this search (map viewport,
+// list scroll, venues loaded) so a return via back/forward or reload can put them back, and keeps
+// the scroll position and loaded count saved as they change.
 
 interface SearchResults {
   state: SearchState;
+  /** The canonical API query of this search (null without a place): what saved views are tied to. */
+  search: string | null;
+  /** Saved for this search in this history entry, if the person is coming back to it. */
+  saved: SavedSearchView | null;
   results: ReturnType<typeof useVenueSearch>;
   highlightedId: string | null;
   setHighlightedId: (id: string | null) => void;
@@ -33,10 +43,45 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
   const params = useSearchParams();
   const query = params.toString();
   const state = useMemo(() => parseSearchState(new URLSearchParams(query)), [query]);
-  const results = useVenueSearch(state);
+  const search = apiQueryString(state);
+
+  // Read once per history entry (a new URL), never again while the person is on it. Pushing a new
+  // search renders before Next.js adds its history entry, so the old entry is read then; it was saved
+  // for a different search, so it's ignored. On the server there's no history: nothing is restored.
+  const [entry, setEntry] = useState(() => ({ query, saved: readSavedView(search) }));
+  if (entry.query !== query) setEntry({ query, saved: readSavedView(search) });
+  const saved = entry.query === query ? entry.saved : null;
+
+  // Coming back to a list that had grown with "Show more": ask for as many venues at once as were
+  // loaded (up to the API's page size), so the saved scroll position can be reached again.
+  const firstPageLimit =
+    saved?.loaded !== undefined && saved.loaded > DEFAULT_LIMIT ? Math.min(saved.loaded, MAX_LIMIT) : undefined;
+  const results = useVenueSearch(state, { firstPageLimit });
+
+  // Keep where the person is on this search saved in its history entry.
+  const loadedCount = results.status === "ready" ? results.items.length : null;
+  useEffect(() => {
+    if (search !== null && loadedCount !== null) saveSearchView(search, { loaded: loadedCount });
+  }, [search, loadedCount]);
+  useEffect(() => {
+    if (search === null) return;
+    const onScroll = () => {
+      saveSearchView(search, { scrollY: Math.round(window.scrollY) });
+    };
+    // Activating a card, a preview or a place leaves this entry: write what's pending first.
+    const onClick = () => {
+      flushSavedView();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [search]);
+
   // Each id is kept with the search it was made in, so a new search drops it even if that search
   // also returns the same venue.
-  const search = apiQueryString(state);
   const [highlighted, setHighlighted] = useState<Interaction>(null);
   const [selected, setSelected] = useState<Interaction>(null);
 
@@ -52,6 +97,8 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
 
   const value: SearchResults = {
     state,
+    search,
+    saved,
     results,
     highlightedId: loaded(highlighted),
     setHighlightedId: (id) => {

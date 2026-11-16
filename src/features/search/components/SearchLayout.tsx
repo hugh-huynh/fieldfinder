@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 
 // The search page's frame (spec §3): on desktop the venue list (~55%) beside a sticky map (~45%); on
 // mobile the map above the results sheet. The map is 3.4 and the list 3.3; the draggable 3-snap
-// sheet (3.6) will replace the mobile list column.
+// sheet (3.8) will replace the mobile list column.
 
 export function SearchLayout({ list, map }: { list: ReactNode; map: ReactNode }) {
   return (

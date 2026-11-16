@@ -11,13 +11,23 @@ import { MapboxMap } from "./MapboxMap";
 // only for a new view, zoom, and saying when the map can't be shown.
 
 const gl = vi.hoisted(() => {
-  type Handler = () => void;
+  type Handler = (payload?: unknown) => void;
   class FakeGlMap {
     static throwOnCreate = false;
     static all: FakeGlMap[] = [];
     readonly options: { container: HTMLElement } & Record<string, unknown>;
     readonly handlers = new Map<string, Handler[]>();
     readonly fitBounds = vi.fn();
+    readonly panBy = vi.fn();
+    /** Screen position the stand-in reports for any point (set per test). */
+    projected = { x: 100, y: 300 };
+    readonly project = vi.fn(() => this.projected);
+    readonly getBounds = vi.fn(() => ({
+      getSouth: () => -37.9,
+      getWest: () => 144.8,
+      getNorth: () => -37.7,
+      getEast: () => 145.2,
+    }));
     readonly zoomIn = vi.fn();
     readonly zoomOut = vi.fn();
     readonly remove = vi.fn();
@@ -32,8 +42,8 @@ const gl = vi.hoisted(() => {
       this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
       return this;
     }
-    emit(event: string) {
-      for (const handler of this.handlers.get(event) ?? []) handler();
+    emit(event: string, payload?: unknown) {
+      for (const handler of this.handlers.get(event) ?? []) handler(payload ?? {});
     }
   }
   class FakeGlMarker {
@@ -80,6 +90,9 @@ function props(overrides: Partial<MapAdapterProps> = {}): MapAdapterProps & { to
     onMarkerClick: vi.fn(),
     onRecentre: vi.fn(),
     onUnavailable: vi.fn(),
+    fit: "padded",
+    onViewportChange: vi.fn(),
+    chosenTopInset: 0,
     ...overrides,
   };
 }
@@ -215,5 +228,51 @@ describe("MapboxMap", () => {
   it("keeps markers inside the map container", () => {
     const { container } = render(<MapboxMap {...props()} />);
     expect(within(container).getAllByRole("button", { name: /pitches/ })).toHaveLength(2);
+  });
+
+  describe("viewport (3.6)", () => {
+    it("reports each settled move, as the person's only for input events and the zoom buttons", async () => {
+      const p = props();
+      const user = userEvent.setup();
+      render(<MapboxMap {...p} />);
+      const viewport = { south: -37.9, west: 144.8, north: -37.7, east: 145.2 };
+
+      act(() => {
+        glMap().emit("moveend", {});
+      });
+      expect(p.onViewportChange).toHaveBeenLastCalledWith(viewport, false);
+
+      act(() => {
+        glMap().emit("moveend", { originalEvent: new MouseEvent("mouseup") });
+      });
+      expect(p.onViewportChange).toHaveBeenLastCalledWith(viewport, true);
+
+      await user.click(screen.getByRole("button", { name: "Zoom in" }));
+      expect(glMap().zoomIn).toHaveBeenCalledWith(undefined, { byUser: true });
+      act(() => {
+        glMap().emit("moveend", { byUser: true });
+      });
+      expect(p.onViewportChange).toHaveBeenLastCalledWith(viewport, true);
+    });
+
+    it("shows a restored viewport exactly, with no padding or animation", () => {
+      const { rerender } = render(<MapboxMap {...props({ fit: "exact" })} />);
+      expect(glMap().options.fitBoundsOptions).toEqual({ padding: 0, duration: 0 });
+      rerender(<MapboxMap {...props({ fit: "exact", viewKey: "search-1|ready" })} />);
+      expect(glMap().fitBounds).toHaveBeenLastCalledWith(expect.anything(), { padding: 0, duration: 0 });
+    });
+
+    it("pans a chosen marker out from under the preview, and leaves one already clear alone", () => {
+      const { rerender } = render(<MapboxMap {...props()} />);
+      glMap().projected = { x: 100, y: 60 };
+      rerender(<MapboxMap {...props({ selectedId: "v1", chosenTopInset: 128 })} />);
+      // 60 px down, needs to be 128 + 48 = 176: move the content 116 px down.
+      expect(glMap().panBy).toHaveBeenCalledWith([0, -116]);
+
+      glMap().panBy.mockClear();
+      glMap().projected = { x: 100, y: 400 };
+      rerender(<MapboxMap {...props({ selectedId: "v2", chosenTopInset: 128 })} />);
+      expect(glMap().panBy).not.toHaveBeenCalled();
+    });
   });
 });
