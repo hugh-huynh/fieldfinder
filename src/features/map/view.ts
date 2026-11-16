@@ -1,6 +1,9 @@
 import type { VenueSearchResultDto } from "@/features/search/search";
 
+import { isPublicMapboxToken } from "./token";
 import { type LatLng, type MapBounds, type MapMarker } from "./types";
+
+export { isPublicMapboxToken };
 
 // What the map shows for a search (PR 3.4): the loaded venues and the searched place together, or,
 // with no venues yet, the search radius around the place.
@@ -72,12 +75,4 @@ export type MapAdapterKind = "fake" | "mapbox" | "unavailable";
 export function mapAdapterKind(adapter: string | undefined, token: string | undefined): MapAdapterKind {
   if (adapter === "fake") return "fake";
   return isPublicMapboxToken(token) ? "mapbox" : "unavailable";
-}
-
-/**
- * Only a public (`pk.`) token may reach the browser. A secret (`sk.`) token, or anything else, is
- * refused, so a mis-set variable can't hand out a secret.
- */
-export function isPublicMapboxToken(token: string | undefined): token is string {
-  return token !== undefined && /^pk\.[\w.-]+$/.test(token.trim());
 }

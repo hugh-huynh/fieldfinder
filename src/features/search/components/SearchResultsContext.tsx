@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
-import { parseSearchState, type SearchState } from "../state";
+import { apiQueryString, parseSearchState, type SearchState } from "../state";
 
 import { useVenueSearch } from "./useVenueSearch";
 
@@ -34,7 +34,17 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
   const [highlighted, setHighlightedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Only venues on the list can be highlighted or chosen; a new search drops both.
+  // A new search (place or filters) drops the highlight and the chosen marker, even if the new
+  // results include that venue again. Reset while rendering, so the old choice never shows for a frame.
+  const searchKey = apiQueryString(state) ?? "none";
+  const [shownKey, setShownKey] = useState(searchKey);
+  if (shownKey !== searchKey) {
+    setShownKey(searchKey);
+    setHighlightedId(null);
+    setSelected(null);
+  }
+
+  // Only venues on the list can be highlighted or chosen.
   const loaded = (id: string | null) =>
     id !== null && results.status === "ready" && results.items.some((item) => item.id === id) ? id : null;
 

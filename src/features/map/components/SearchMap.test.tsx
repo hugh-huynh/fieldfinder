@@ -180,6 +180,52 @@ describe("SearchMap", () => {
     expect(marker("Other Park, 2 pitches")).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("drops the choice and highlight for a new search even when it finds the same venues again", async () => {
+    server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+    const user = userEvent.setup();
+    const { rerender } = renderSearch();
+    const list = await screen.findByRole("list", { name: "Venues" });
+    await user.click(marker("South Oval, 2 pitches"));
+    await user.hover(list.children[0] as HTMLElement);
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-pressed", "true");
+    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("data-marker-state", "highlighted");
+
+    // A different radius nearby: same venues come back.
+    server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+    search = "lat=-37.814&lng=144.963&place=Melbourne&radiusKm=20";
+    rerender(
+      <SearchResultsProvider>
+        <SearchMap />
+        <ResultsPanel />
+      </SearchResultsProvider>,
+    );
+    await screen.findByRole("list", { name: "Venues" });
+    await waitFor(() => {
+      expect(markerNames()).toHaveLength(3);
+    });
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-pressed", "false");
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("data-marker-state", "default");
+    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("data-marker-state", "default");
+  });
+
+  it("keeps the choice across 'Show more' (same search)", async () => {
+    server.use(
+      searchHandler([
+        { items: venues.slice(0, 2), totalCount: 3, nextCursor: "c1" },
+        { items: venues.slice(2), totalCount: 3, nextCursor: null },
+      ]),
+    );
+    const user = userEvent.setup();
+    renderSearch();
+    await screen.findByRole("list", { name: "Venues" });
+    await user.click(marker("North Reserve, 1 pitch"));
+    await user.click(screen.getByRole("button", { name: "Show more venues" }));
+    await waitFor(() => {
+      expect(markerNames()).toHaveLength(3);
+    });
+    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("aria-pressed", "true");
+  });
+
   describe("when there's no map", () => {
     it.each([
       ["no token", undefined],
