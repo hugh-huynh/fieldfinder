@@ -136,10 +136,12 @@ describe("SearchMap", () => {
   });
 
   it("adds markers for 'Show more' without moving the map", async () => {
+    // The next page's venue is far outside the fitted view, so the bounds grow.
+    const far = venueResult(4, { name: "Far Field", location: { latitude: -38.6, longitude: 146.2 } });
     server.use(
       searchHandler([
         { items: venues.slice(0, 2), totalCount: 3, nextCursor: "c1" },
-        { items: venues.slice(2), totalCount: 3, nextCursor: null },
+        { items: [far], totalCount: 3, nextCursor: null },
       ]),
     );
     const user = userEvent.setup();
@@ -148,6 +150,8 @@ describe("SearchMap", () => {
     expect(markerNames()).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Zoom in" }));
     const view = fakeMap().dataset.viewKey;
+    const position = () => (marker("North Reserve, 1 pitch").parentElement as HTMLElement).style.cssText;
+    const before = position();
 
     await user.click(screen.getByRole("button", { name: "Show more venues" }));
     await waitFor(() => {
@@ -155,6 +159,35 @@ describe("SearchMap", () => {
     });
     expect(fakeMap().dataset.viewKey).toBe(view);
     expect(fakeMap()).toHaveAttribute("data-zoom-steps", "1");
+    expect(position()).toBe(before);
+  });
+
+  it("drops the old search's choice and highlight even when the new search has the same venue", async () => {
+    server.use(searchHandler([{ items: venues, totalCount: 3, nextCursor: null }]));
+    const user = userEvent.setup();
+    const { rerender } = renderSearch();
+    const list = await screen.findByRole("list", { name: "Venues" });
+    await user.click(marker("South Oval, 2 pitches"));
+    within(list).getByRole("link", { name: "North Reserve" }).focus();
+    await waitFor(() => {
+      expect(marker("North Reserve, 1 pitch")).toHaveAttribute("data-marker-state", "highlighted");
+    });
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-pressed", "true");
+
+    // A wider radius: same place, same venues back.
+    search = "lat=-37.814&lng=144.963&place=Melbourne&radiusKm=20";
+    rerender(
+      <SearchResultsProvider>
+        <SearchMap />
+        <ResultsPanel />
+      </SearchResultsProvider>,
+    );
+    await waitFor(() => {
+      expect(markerNames()).toHaveLength(3);
+    });
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("aria-pressed", "false");
+    expect(marker("South Oval, 2 pitches")).toHaveAttribute("data-marker-state", "default");
+    expect(marker("North Reserve, 1 pitch")).toHaveAttribute("data-marker-state", "default");
   });
 
   it("fits the map again for a new search, and drops the old search's choice", async () => {

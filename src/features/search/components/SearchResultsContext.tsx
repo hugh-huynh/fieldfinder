@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
-import { parseSearchState, type SearchState } from "../state";
+import { apiQueryString, parseSearchState, type SearchState } from "../state";
 
 import { useVenueSearch } from "./useVenueSearch";
 
@@ -24,6 +24,9 @@ interface SearchResults {
   toggleSelected: (id: string) => void;
 }
 
+/** A venue id and the search (canonical API query) it was highlighted or chosen in. */
+type Interaction = { search: string | null; id: string } | null;
+
 const SearchResultsContext = createContext<SearchResults | null>(null);
 
 export function SearchResultsProvider({ children }: { children: ReactNode }) {
@@ -31,24 +34,35 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
   const query = params.toString();
   const state = useMemo(() => parseSearchState(new URLSearchParams(query)), [query]);
   const results = useVenueSearch(state);
-  const [highlighted, setHighlightedId] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  // Each id is kept with the search it was made in, so a new search drops it even if that search
+  // also returns the same venue.
+  const search = apiQueryString(state);
+  const [highlighted, setHighlighted] = useState<Interaction>(null);
+  const [selected, setSelected] = useState<Interaction>(null);
 
-  // Only venues on the list can be highlighted or chosen; a new search drops both.
-  const loaded = (id: string | null) =>
-    id !== null && results.status === "ready" && results.items.some((item) => item.id === id) ? id : null;
+  // Only venues of this search, on the list, can be highlighted or chosen.
+  const loaded = (interaction: Interaction) =>
+    interaction !== null &&
+    interaction.search === search &&
+    results.status === "ready" &&
+    results.items.some((item) => item.id === interaction.id)
+      ? interaction.id
+      : null;
+  const selectedId = loaded(selected);
 
   const value: SearchResults = {
     state,
     results,
     highlightedId: loaded(highlighted),
-    setHighlightedId,
-    clearHighlight: (id) => {
-      setHighlightedId((current) => (current === id ? null : current));
+    setHighlightedId: (id) => {
+      setHighlighted(id === null ? null : { search, id });
     },
-    selectedId: loaded(selected),
+    clearHighlight: (id) => {
+      setHighlighted((current) => (current?.id === id ? null : current));
+    },
+    selectedId,
     toggleSelected: (id) => {
-      setSelected((current) => (current === id ? null : id));
+      setSelected(selectedId === id ? null : { search, id });
     },
   };
 

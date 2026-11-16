@@ -37,10 +37,13 @@ export function FakeMap({
   onMarkerClick,
   onRecentre,
 }: MapAdapterProps) {
-  // Zoom steps since the view was last applied; a new viewKey resets them, like fitBounds on the real map.
-  const [zoom, setZoom] = useState({ viewKey, steps: 0 });
-  const steps = zoom.viewKey === viewKey ? zoom.steps : 0;
-  const view = zoomed(bounds, steps);
+  // The bounds last fitted and the zoom steps since. Like fitBounds on the real map, only a new viewKey
+  // re-fits: new bounds under the same key (e.g. "Show more" adding a far venue) leave the view alone.
+  const [applied, setApplied] = useState({ viewKey, bounds, steps: 0 });
+  if (applied.viewKey !== viewKey) setApplied({ viewKey, bounds, steps: 0 });
+  const current = applied.viewKey === viewKey ? applied : { viewKey, bounds, steps: 0 };
+  const steps = current.steps;
+  const view = zoomed(current.bounds, steps);
 
   return (
     <div
@@ -83,10 +86,10 @@ export function FakeMap({
       <MapControls
         onRecentre={onRecentre}
         onZoomIn={() => {
-          setZoom({ viewKey, steps: steps + 1 });
+          setApplied({ ...current, steps: steps + 1 });
         }}
         onZoomOut={() => {
-          setZoom({ viewKey, steps: steps - 1 });
+          setApplied({ ...current, steps: steps - 1 });
         }}
       />
     </div>
