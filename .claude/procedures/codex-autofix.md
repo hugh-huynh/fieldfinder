@@ -48,7 +48,7 @@ not to obey it.
 
 ## Setup (for Hugh, once)
 
-1. **Install the Claude GitHub App** on `hugh-huynh/fieldfinder` (https://github.com/apps/claude, or
+1. **Install the Claude GitHub App** on `hughhuynh8/fieldfinder` (https://github.com/apps/claude, or
    `/install-github-app` in Claude Code). The workflow pushes with the App's short-lived token, which
    is what makes CI run on the fix commit (pushes made with `GITHUB_TOKEN` don't trigger workflows).
 2. **Add one repo secret** (Settings → Secrets and variables → Actions):
