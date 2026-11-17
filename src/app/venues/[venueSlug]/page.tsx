@@ -8,8 +8,8 @@ import { BackToResults } from "@/features/venues/components/BackToResults";
 import { FacilityList } from "@/features/venues/components/FacilityList";
 import { Gallery } from "@/features/venues/components/Gallery";
 import { PitchCard } from "@/features/venues/components/PitchCard";
+import { VenueLocation } from "@/features/venues/components/VenueLocation";
 import { getVenueDetail } from "@/features/venues/detail";
-import { directionsUrl } from "@/features/venues/directions";
 import { slugSchema } from "@/features/venues/slug";
 import { publicDb } from "@/lib/db/public";
 
@@ -49,12 +49,6 @@ export default async function VenuePage({ params }: { params: Params }) {
   const detail = await load((await params).venueSlug);
   if (detail === null) notFound();
   const { venue, pitches, media } = detail;
-  const address = [
-    venue.streetAddress,
-    `${venue.suburb} ${venue.state}${venue.postcode === null ? "" : ` ${venue.postcode}`}`,
-  ]
-    .filter((part): part is string => part !== null)
-    .join(", ");
 
   return (
     <main className="mx-auto max-w-5xl px-4 pt-4 pb-16 lg:px-6">
@@ -121,16 +115,7 @@ export default async function VenuePage({ params }: { params: Params }) {
           <h2 id="location" className="text-lg font-semibold text-ink">
             Location
           </h2>
-          <address className="mt-2 text-ink not-italic">{address}</address>
-          <a
-            href={directionsUrl(venue.location.latitude, venue.location.longitude)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-primary px-6 font-semibold text-surface hover:bg-primary-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            Get directions
-            <span className="sr-only">(opens Google Maps in a new tab)</span>
-          </a>
+          <VenueLocation venue={venue} />
 
           <h2 className="mt-8 text-lg font-semibold text-ink">Access</h2>
           <p className="mt-2 text-ink">{venue.access === null ? "Not confirmed" : ACCESS_LABELS[venue.access]}</p>
