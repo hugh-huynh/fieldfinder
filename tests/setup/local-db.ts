@@ -52,6 +52,13 @@ const SUPABASE_CLI = fileURLToPath(new URL("../../node_modules/.bin/supabase", i
  * committed. They're fixed development values that only work against a local `supabase start`.
  */
 export function localStorageEnv(): Record<string, string> {
+  // Passed in by scripts/visual-baselines.sh (opt-in, FF_LOCAL_S3_FROM_ENV=1): the Linux container
+  // has no Docker access of its own to run `supabase status`. Never picked up from a shell otherwise,
+  // so staging keys exported for `pnpm media:upload-fixtures` can't be used by tests by accident.
+  const given = ["SUPABASE_S3_REGION", "SUPABASE_S3_ACCESS_KEY_ID", "SUPABASE_S3_SECRET_ACCESS_KEY"] as const;
+  if (process.env.FF_LOCAL_S3_FROM_ENV === "1" && given.every((name) => (process.env[name] ?? "") !== "")) {
+    return Object.fromEntries(given.map((name) => [name, process.env[name] ?? ""]));
+  }
   const output = execFileSync(SUPABASE_CLI, ["status", "-o", "env"], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
