@@ -45,12 +45,17 @@ async function mockSearch(page: Page): Promise<URL[]> {
 
 const map = (page: Page) => page.getByTestId("fake-map");
 
+/** The list scrolls in its own container (the results sheet on phones, the list column on desktop). */
+const listScroll = (page: Page) =>
+  page.evaluate(() => document.querySelector("[data-results-scroller]")?.scrollTop ?? 0);
+
 /** Drag the map's empty edge sideways, as a person panning would. */
 async function pan(page: Page, dx: number) {
   const box = await map(page).boundingBox();
   if (box === null) throw new Error("map not visible");
   const x = box.x + box.width * 0.05;
-  const y = box.y + box.height * 0.5;
+  // Near the top: on phones the results sheet covers the map's lower part (3.8).
+  const y = box.y + box.height * 0.15;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + dx / 2, y, { steps: 3 });
@@ -116,7 +121,7 @@ test.describe("back from a venue", () => {
       .locator(":scope > li")
       .first()
       .evaluate((el) => el.getBoundingClientRect().height);
-    const scrollBefore = await page.evaluate(() => window.scrollY);
+    const scrollBefore = await listScroll(page);
     expect(scrollBefore).toBeGreaterThan(cardHeight);
 
     await card.click();
@@ -126,8 +131,8 @@ test.describe("back from a venue", () => {
     await expect(page).toHaveURL(SEARCH);
     // All 25 come back in one request, so the scroll position can be reached again.
     await expect(list.getByRole("heading", { level: 2 })).toHaveCount(TOTAL);
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollBefore - cardHeight);
-    const scrollAfter = await page.evaluate(() => window.scrollY);
+    await expect.poll(() => listScroll(page)).toBeGreaterThan(scrollBefore - cardHeight);
+    const scrollAfter = await listScroll(page);
     expect(Math.abs(scrollAfter - scrollBefore)).toBeLessThanOrEqual(cardHeight);
     await expect.poll(markerBox).toBe(markerBefore);
     // Restoring isn't a move by the person.

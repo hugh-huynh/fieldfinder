@@ -7,7 +7,7 @@ import { Component, useMemo, useRef, useState, type ReactNode } from "react";
 import { saveSearchView, type SavedSearchView } from "@/features/search/history-state";
 import { MAX_RADIUS_KM, MIN_RADIUS_KM } from "@/features/search/query";
 import { useSearchResults } from "@/features/search/components/SearchResultsContext";
-import { MapPlaceholder } from "@/features/search/components/SearchLayout";
+import { MapPlaceholder, useSheet } from "@/features/search/components/SearchLayout";
 import { placeLocation, serializeSearchState } from "@/features/search/state";
 
 import { type MapAdapterProps, type MapBounds } from "../types";
@@ -34,12 +34,15 @@ const MapboxMap = dynamic(() => import("../mapbox/MapboxMap").then((m) => m.Mapb
   loading: () => <MapPlaceholder />,
 });
 
-/** The preview card's footprint at the top of the map (top-4 plus the card), kept clear of its marker. */
+/** The preview card's footprint (its offset plus the card), kept clear of its marker. */
 const PREVIEW_INSET_PX = 128;
+/** The map controls' column (right-4 plus a 44 px button), kept clear in fitted views. */
+const CONTROLS_INSET_PX = 64;
 
 export function SearchMap() {
   const { state, search, saved, results, highlightedId, selectedId, toggleSelected } = useSearchResults();
   const router = useRouter();
+  const sheet = useSheet();
   /** How many times Recentre was pressed, and the history entry's saved view it was last pressed on. */
   const [recentred, setRecentred] = useState<{ count: number; on: SavedSearchView | null }>({ count: 0, on: null });
   const [unavailable, setUnavailable] = useState(false);
@@ -104,7 +107,16 @@ export function SearchMap() {
       if (search !== null) saveSearchView(search, { bounds: next });
       if (byUser) setMoved({ viewKey, bounds: next });
     },
-    chosenTopInset: chosen === null ? 0 : PREVIEW_INSET_PX,
+    // Desktop: the preview covers the top. Mobile (3.8): the sheet covers the bottom, and the preview
+    // sits just above it.
+    obscured: sheet.mobile
+      ? {
+          top: 0,
+          bottom: (sheet.sheetPx ?? 0) + (chosen === null ? 0 : PREVIEW_INSET_PX),
+          left: 0,
+          right: CONTROLS_INSET_PX,
+        }
+      : { top: chosen === null ? 0 : PREVIEW_INSET_PX, bottom: 0, left: 0, right: CONTROLS_INSET_PX },
   };
 
   return (
@@ -117,7 +129,8 @@ export function SearchMap() {
         )}
       </MapErrorBoundary>
       {/* Polite, so a keyboard or screen-reader user who moved the map hears the offer. */}
-      <div aria-live="polite" className="absolute bottom-14 left-1/2 z-10 -translate-x-1/2 lg:bottom-10">
+      {/* Mobile: top centre, clear of the results sheet (3.8). Desktop: bottom centre. */}
+      <div aria-live="polite" className="absolute top-4 left-1/2 z-10 -translate-x-1/2 lg:top-auto lg:bottom-10">
         {area?.kind === "search" ? (
           <button
             type="button"

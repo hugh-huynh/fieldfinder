@@ -16,7 +16,8 @@ export function MapControls({
   onZoomOut: () => void;
 }) {
   return (
-    <div className="absolute right-4 bottom-14 z-10 flex flex-col gap-2 lg:bottom-10">
+    // Mobile: top right, clear of the results sheet (3.8). Desktop: bottom right.
+    <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 lg:top-auto lg:bottom-10">
       <ControlButton label="Recentre map" onClick={onRecentre} className="rounded-pill border border-border-strong">
         <RecentreIcon />
       </ControlButton>

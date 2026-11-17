@@ -13,7 +13,8 @@ import { PitchMark } from "@/features/search/components/icons";
 // `href`: the pitch page for a venue with one published pitch, else the venue page. That comes from
 // venueRouteTarget() on the server, from published pitches only, so filters never change it.
 //
-// A non-modal dialog over the top of the map: the person can still use the map and the list. Escape
+// A non-modal dialog over the map (top left on desktop; on mobile just above the results sheet, as
+// in the mockup, 3.8): the person can still use the map and the list. Escape
 // or Close shuts it and puts focus back on the marker (the parent does that in onClose).
 
 export function MarkerPreview({ venue, onClose }: { venue: VenueSearchResultDto; onClose: () => void }) {
@@ -41,7 +42,7 @@ export function MarkerPreview({ venue, onClose }: { venue: VenueSearchResultDto;
       role="dialog"
       aria-labelledby={titleId}
       onKeyDown={onKeyDown}
-      className="group absolute inset-x-4 top-4 z-20 flex items-center gap-3 rounded-card border border-border bg-surface p-2 pr-12 shadow-lg focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus sm:right-auto sm:w-96"
+      className="group absolute inset-x-4 bottom-[calc(var(--sheet-h,0px)+0.75rem)] z-20 flex items-center gap-3 rounded-card border border-border bg-surface p-2 pr-12 shadow-lg focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus sm:right-auto sm:w-96 lg:top-4 lg:bottom-auto"
     >
       <div className="relative aspect-[4/3] w-24 shrink-0 overflow-hidden rounded-card bg-subtle">
         {image === null ? (

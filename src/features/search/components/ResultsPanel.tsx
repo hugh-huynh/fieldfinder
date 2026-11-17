@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { activeFilterCount } from "../state";
 
 import { editFilters, focusLocationSearch } from "./search-controls";
-import { useSearchResults } from "./SearchResultsContext";
+import { resultsScroller, useSearchResults } from "./SearchResultsContext";
 import { VenueCard } from "./VenueCard";
 
 // The results list for the URL's search (spec §3, PR 3.3): loading skeletons, an error with Retry,
@@ -20,7 +20,7 @@ import { VenueCard } from "./VenueCard";
 // the list scrolls back to where the person left it once the venues are in (3.6).
 
 export function ResultsPanel() {
-  const { state, saved, results, setHighlightedId, clearHighlight } = useSearchResults();
+  const { state, search, saved, results, setHighlightedId, clearHighlight } = useSearchResults();
   const list = useRef<HTMLUListElement>(null);
   /** Index of the first venue a "Show more" will add; focused once it arrives. */
   const focusFrom = useRef<number | null>(null);
@@ -38,8 +38,16 @@ export function ResultsPanel() {
   useEffect(() => {
     if (saved?.scrollY === undefined || results.status !== "ready" || scrolledFor.current === saved) return;
     scrolledFor.current = saved;
-    window.scrollTo({ top: saved.scrollY, behavior: "instant" });
+    resultsScroller()?.scrollTo({ top: saved.scrollY, behavior: "instant" });
   }, [saved, results.status]);
+
+  // A fresh search (or a return with no saved position) starts at the top. The scroll container
+  // outlives the search (3.8), so Next.js's page-scroll reset doesn't reach it.
+  useEffect(() => {
+    if (saved?.scrollY !== undefined) return;
+    const scroller = resultsScroller();
+    if (scroller !== null) scroller.scrollTop = 0;
+  }, [search, saved]);
 
   const announcement =
     results.status === "loading"

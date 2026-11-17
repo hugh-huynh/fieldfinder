@@ -65,17 +65,20 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
   }, [search, loadedCount]);
   useEffect(() => {
     if (search === null) return;
+    // The list's own scroll container (SearchLayout), on every screen size since 3.8.
+    const scroller = resultsScroller();
+    if (scroller === null) return;
     const onScroll = () => {
-      saveSearchView(search, { scrollY: Math.round(window.scrollY) });
+      saveSearchView(search, { scrollY: Math.round(scroller.scrollTop) });
     };
     // Activating a card, a preview or a place leaves this entry: write what's pending first.
     const onClick = () => {
       flushSavedView();
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    scroller.addEventListener("scroll", onScroll, { passive: true });
     document.addEventListener("click", onClick, true);
     return () => {
-      window.removeEventListener("scroll", onScroll);
+      scroller.removeEventListener("scroll", onScroll);
       document.removeEventListener("click", onClick, true);
     };
   }, [search]);
@@ -114,6 +117,16 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
   };
 
   return <SearchResultsContext value={value}>{children}</SearchResultsContext>;
+}
+
+/** The element the results list scrolls in (SearchLayout marks it). */
+export function resultsScroller(): HTMLElement | null {
+  return typeof document === "undefined" ? null : document.querySelector<HTMLElement>("[data-results-scroller]");
+}
+
+/** For components that also render outside a search (e.g. the layout in a loading fallback). */
+export function useOptionalSearchResults(): SearchResults | null {
+  return useContext(SearchResultsContext);
 }
 
 export function useSearchResults(): SearchResults {

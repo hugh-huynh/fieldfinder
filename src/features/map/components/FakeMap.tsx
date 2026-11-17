@@ -14,7 +14,8 @@ import { MapControls } from "./MapControls";
 //
 // Like the real map (3.6) it can be dragged to pan, the zoom buttons zoom the current view, and it
 // reports its viewport after each move: the person's own moves as byUser, fitting a view as not.
-// The reported bounds are the box the markers are laid out in (the middle 80%), so restoring them
+// The reported bounds are the box the markers are laid out in (the middle 80%, less whatever covers
+// the map when the view was fitted: the preview card or the mobile sheet, 3.8), so restoring them
 // puts every marker back exactly where it was.
 
 const ZOOM_FACTOR = 2;
@@ -47,12 +48,15 @@ export function FakeMap({
   onMarkerClick,
   onRecentre,
   onViewportChange,
+  obscured,
 }: MapAdapterProps) {
   // The view fitted for `viewKey`, then moved by the person. Only a new viewKey re-fits: new bounds
   // under the same key (e.g. "Show more" adding a far venue) leave the view alone, as on the real map.
-  const [applied, setApplied] = useState({ viewKey, view: bounds, steps: 0 });
-  if (applied.viewKey !== viewKey) setApplied({ viewKey, view: bounds, steps: 0 });
-  const current = applied.viewKey === viewKey ? applied : { viewKey, view: bounds, steps: 0 };
+  // What covers the map is taken when a view is fitted (like the real map's padding), so dragging the
+  // mobile sheet never moves the markers.
+  const [applied, setApplied] = useState({ viewKey, view: bounds, steps: 0, obscured });
+  if (applied.viewKey !== viewKey) setApplied({ viewKey, view: bounds, steps: 0, obscured });
+  const current = applied.viewKey === viewKey ? applied : { viewKey, view: bounds, steps: 0, obscured };
 
   const layer = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -69,7 +73,7 @@ export function FakeMap({
   }, [current.viewKey]);
 
   function moveTo(next: MapBounds, steps = current.steps) {
-    setApplied({ viewKey, view: next, steps });
+    setApplied({ ...current, view: next, steps });
     onViewportChange(next, true);
   }
 
@@ -116,8 +120,17 @@ export function FakeMap({
         setDragOffset(null);
       }}
     >
-      {/* Markers sit in the middle 80% so none straddles the edge at the fitted view. */}
-      <div ref={layer} className="absolute inset-[10%]">
+      {/* Markers sit in the middle 80% (clear of what covers the map) so none straddles an edge. */}
+      <div
+        ref={layer}
+        className="absolute"
+        style={{
+          top: `calc(10% + ${String(current.obscured.top)}px)`,
+          bottom: `calc(10% + ${String(current.obscured.bottom)}px)`,
+          left: `calc(10% + ${String(current.obscured.left)}px)`,
+          right: `calc(10% + ${String(current.obscured.right)}px)`,
+        }}
+      >
         {markers.map((marker) => {
           const state = markerState(marker.id, highlightedId, selectedId);
           const x = fraction(marker.position.lng, view.west, view.east);
