@@ -17,7 +17,8 @@ import type { MediaDto } from "../dto";
 // - Each photo is a button that opens the lightbox: a modal <dialog> with the photo, its description
 //   and credit, "Photo 2 of 5", Previous/Next buttons and the arrow keys (wrapping at the ends).
 //   Escape or Close returns focus to the thumbnail of the photo last shown.
-// - With image optimisation on, `sizes` lets the browser pick a resized copy (srcset).
+// - Photos are served as stored, not resized (see MediaImage: an optimiser cache could outlive
+//   unpublishing). `sizes` is set for when upload-time copies give a srcset.
 
 const SIZES = {
   large: "(min-width: 1024px) 976px, calc(100vw - 2rem)",

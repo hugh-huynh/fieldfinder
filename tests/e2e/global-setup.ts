@@ -8,8 +8,8 @@ import { assertLocal, localStorageEnv, prepareLocalDatabase } from "../setup/loc
 // E2E_DB=1, against the LOCAL Supabase stack (`pnpm db:start`, seeded by `pnpm db:reset`). Here:
 // - the app's roles get their local throwaway passwords;
 // - the seed's published photos get their synthetic placeholder files in LOCAL storage (the same
-//   `pnpm media:upload-fixtures` used for staging), so detail pages show real images, through the
-//   image optimiser where it's on. The endpoint must be on this machine.
+//   `pnpm media:upload-fixtures` used for staging), so detail pages show real images. The endpoint
+//   must be on this machine.
 // Without E2E_DB those specs skip and nothing here runs.
 
 const UPLOAD_SCRIPT = fileURLToPath(new URL("../../scripts/upload-fixture-images.ts", import.meta.url));

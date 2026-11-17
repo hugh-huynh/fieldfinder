@@ -32,12 +32,7 @@ function venue(n: number, extra: Record<string, unknown> = {}) {
 }
 
 async function mockSearch(page: Page, pages: { ids: number[]; next: string | null }[], total: number) {
-  // The photo is fetched straight from its (fake) origin, or, when the build has image optimisation on
-  // (3.12), through /_next/image with that URL: answer both in the browser.
   await page.route("**/media.test/**", (route) => route.fulfill({ body: PIXEL, contentType: "image/png" }));
-  await page.route(/\/_next\/image\?url=https%3A%2F%2Fmedia\.test/, (route) =>
-    route.fulfill({ body: PIXEL, contentType: "image/png" }),
-  );
   await page.route("**/api/venues?**", async (route) => {
     const cursor = new URL(route.request().url()).searchParams.get("cursor");
     const p = pages[cursor === null ? 0 : Number(cursor.slice(1))] ?? { ids: [], next: null };

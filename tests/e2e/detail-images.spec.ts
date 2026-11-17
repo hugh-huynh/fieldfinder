@@ -8,11 +8,11 @@ import { expect, test, type Page } from "@playwright/test";
 test.skip(process.env.E2E_DB !== "1", "needs the local database: pnpm db:start, then E2E_DB=1 pnpm e2e");
 
 /**
- * Holds back every photo request (optimised through /_next/image, or straight from the bucket), so a
- * page that didn't reserve the space would visibly shift when they arrive; or fails them all.
+ * Holds back every photo request to the bucket, so a page that didn't reserve the space would visibly
+ * shift when they arrive; or fails them all.
  */
 async function servePhotos(page: Page, { fail = false, delayMs = 300 } = {}) {
-  await page.route(/\/_next\/image\?|\/media-public\//, async (route) => {
+  await page.route("**/media-public/**", async (route) => {
     await new Promise((r) => setTimeout(r, delayMs));
     if (fail) await route.fulfill({ status: 404, body: "" });
     else await route.continue();
@@ -94,15 +94,5 @@ test.describe("detail page photos", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(second).toBeFocused();
-  });
-
-  test("photos tell the browser how wide they're shown (for srcset)", async ({ page }) => {
-    await servePhotos(page, { delayMs: 0 });
-    await page.goto("/venues/ironbark-park");
-    const sizes = await page
-      .getByRole("region", { name: "Photos of Ironbark Park" })
-      .getByRole("img")
-      .evaluateAll((imgs) => imgs.map((img) => img.getAttribute("sizes")));
-    expect(sizes).toEqual(["(min-width: 1024px) 976px, calc(100vw - 2rem)", "(min-width: 640px) 240px, 33vw"]);
   });
 });
