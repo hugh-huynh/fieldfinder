@@ -144,4 +144,63 @@ describe("SearchLayout on a phone", () => {
     });
     expect(splitter()).toHaveAttribute("aria-valuetext", "List view");
   });
+
+  it("cancels a press on the handle, so it never selects or drags text", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe() {
+          this.callback([{ contentRect: { height: 716 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+        }
+        disconnect() {}
+      },
+    );
+    HTMLElement.prototype.setPointerCapture = () => undefined;
+    renderPage();
+    await screen.findByRole("list", { name: "Venues" });
+    const handleArea = splitter().parentElement as HTMLElement;
+    // fireEvent returns false when the event's default was prevented.
+    expect(fireEvent.pointerDown(handleArea, { clientY: 600, pointerId: 1 })).toBe(false);
+    fireEvent.pointerUp(handleArea, { clientY: 600, pointerId: 1 });
+    // The size buttons are left alone: they're pressed, not dragged.
+    expect(fireEvent.pointerDown(sizeButton("List"), { clientY: 600, pointerId: 2 })).toBe(true);
+  });
+
+  it("fits the map clear of the sheet even when the results arrive before the sheet is measured", async () => {
+    // A slow device: the first measurement comes only after the venues have loaded.
+    let measure: (() => void) | null = null;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe() {
+          measure = () => {
+            this.callback([{ contentRect: { height: 716 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+          };
+        }
+        disconnect() {}
+      },
+    );
+    renderPage();
+    await screen.findByRole("list", { name: "Venues" });
+    const map = screen.getByTestId("fake-map");
+    const markerLayer = () => (map.firstElementChild as HTMLElement).style.bottom;
+    const fitted = map.dataset.viewKey;
+    expect(markerLayer()).toBe("calc(10% + 0px)");
+
+    act(() => {
+      measure?.();
+    });
+    // Split view is 358 px of the 716: the view is fitted again, above it, on the same map.
+    expect(markerLayer()).toBe("calc(10% + 358px)");
+    expect(map.dataset.viewKey).not.toBe(fitted);
+    expect(screen.getByTestId("fake-map")).toBe(map);
+
+    // Dragging the sheet afterwards never refits (the markers stay put under the finger).
+    const key = map.dataset.viewKey;
+    await userEvent.setup().click(sizeButton("List"));
+    expect(map.dataset.viewKey).toBe(key);
+    expect(markerLayer()).toBe("calc(10% + 358px)");
+  });
 });

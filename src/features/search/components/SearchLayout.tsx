@@ -114,6 +114,9 @@ export function SearchLayout({ list, map }: { list: ReactNode; map: ReactNode })
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (!mobile || containerPx === null || (event.target as Element).closest("button") !== null) return;
+    // A press on the handle is only ever a drag: never start a text selection, or a native drag of
+    // text already selected (in WebKit that swallows every later pointer event, stranding the sheet).
+    event.preventDefault();
     drag.current = { y: event.clientY, startPx: snapHeight(snap, containerPx), moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -155,7 +158,7 @@ export function SearchLayout({ list, map }: { list: ReactNode; map: ReactNode })
   }
 
   return (
-    <SheetContext value={{ mobile, sheetPx: mobile ? (sheetPx ?? 0) : null }}>
+    <SheetContext value={{ mobile, sheetPx }}>
       <div
         ref={root}
         style={style}

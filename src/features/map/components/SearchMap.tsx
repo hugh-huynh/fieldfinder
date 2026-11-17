@@ -68,7 +68,10 @@ export function SearchMap() {
   const restored = saved !== null && recentred.on !== saved ? (saved.bounds ?? null) : null;
   const bounds = restored ?? searched;
   // A new view for each search (first the radius while loading, then its venues) and each Recentre.
-  const viewKey = `${search ?? "none"}|${results.status}|${String(recentred.count)}`;
+  // Also once the phone's sheet is first measured: a view fitted before then (results can arrive
+  // first on a slow device) would lay markers out under the sheet. Dragging the sheet never refits.
+  const layout = sheet.mobile && sheet.sheetPx === null ? "unmeasured" : "measured";
+  const viewKey = `${search ?? "none"}|${results.status}|${String(recentred.count)}|${layout}`;
 
   const chosen = items?.find((item) => item.id === selectedId) ?? null;
   const area = moved?.viewKey === viewKey ? areaSearch(moved.bounds, MIN_RADIUS_KM, MAX_RADIUS_KM) : null;

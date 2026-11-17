@@ -8,12 +8,21 @@ import { expect, test, type Page } from "@playwright/test";
 // Linux only: baselines are made in Playwright's Linux image (scripts/visual-baselines.sh) to match
 // CI's runner; fonts render differently on macOS. CI's full E2E job compares against them on main and
 // nightly. WebKit is left out: one engine per size keeps the baselines meaningful, not noisy.
+//
+// Photos are masked: their boxes (size, place, crop) are compared, not their pixels. The fixture
+// placeholders are drawn by sharp with the host's own sans-serif font, so the same photo differs
+// between CI's runner and Playwright's image; they're test content, not part of the design.
 
 test.skip(process.env.E2E_DB !== "1", "needs the local database: pnpm db:start, then E2E_DB=1 pnpm e2e");
 test.skip(process.platform !== "linux", "baselines are Linux renderings (scripts/visual-baselines.sh)");
 test.skip(({ browserName }) => browserName !== "chromium", "one engine per agreed size");
 
 const SEARCH = "/?lat=-37.784&lng=144.968&place=Carlton+North%2C+Victoria+3054";
+
+/** A screenshot of the whole viewport, photos masked with a flat neutral fill. */
+async function screenshot(page: Page, name: string) {
+  await expect(page).toHaveScreenshot(name, { mask: [page.locator("img")], maskColor: "#dce5df" });
+}
 
 async function settle(page: Page) {
   await page.waitForLoadState("networkidle");
@@ -32,12 +41,12 @@ test.describe("visual baselines", () => {
   test("landing", async ({ page }) => {
     await page.goto("/");
     await settle(page);
-    await expect(page).toHaveScreenshot("landing.png");
+    await screenshot(page, "landing.png");
   });
 
   test("results", async ({ page }) => {
     await results(page);
-    await expect(page).toHaveScreenshot("results.png");
+    await screenshot(page, "results.png");
   });
 
   test("phone sheet: list and map views", async ({ page, isMobile }) => {
@@ -45,9 +54,9 @@ test.describe("visual baselines", () => {
     await results(page);
     const sizes = page.getByRole("group", { name: "Results size" });
     await sizes.getByRole("button", { name: "List" }).click();
-    await expect(page).toHaveScreenshot("results-list-view.png");
+    await screenshot(page, "results-list-view.png");
     await sizes.getByRole("button", { name: "Map" }).click();
-    await expect(page).toHaveScreenshot("results-map-view.png");
+    await screenshot(page, "results-map-view.png");
   });
 
   test("marker preview", async ({ page }) => {
@@ -58,7 +67,7 @@ test.describe("visual baselines", () => {
       .click();
     await page.getByRole("dialog", { name: "Ironbark Park" }).waitFor();
     await settle(page);
-    await expect(page).toHaveScreenshot("marker-preview.png");
+    await screenshot(page, "marker-preview.png");
   });
 
   test("filters", async ({ page }) => {
@@ -68,20 +77,20 @@ test.describe("visual baselines", () => {
       .getByRole("button", { name: /^Filters/ })
       .click();
     await page.getByRole("dialog", { name: "Filters" }).waitFor();
-    await expect(page).toHaveScreenshot("filters.png");
+    await screenshot(page, "filters.png");
   });
 
   test("no results", async ({ page }) => {
     await page.goto(`${SEARCH}&surface=hybrid&pitchSize=training&radiusKm=1`);
     await page.getByText("No venues match this search.").waitFor();
     await settle(page);
-    await expect(page).toHaveScreenshot("no-results.png");
+    await screenshot(page, "no-results.png");
   });
 
   test("venue page", async ({ page }) => {
     await page.goto("/venues/ironbark-park");
     await settle(page);
-    await expect(page).toHaveScreenshot("venue.png");
+    await screenshot(page, "venue.png");
   });
 
   test("photo viewer", async ({ page }) => {
@@ -90,18 +99,18 @@ test.describe("visual baselines", () => {
     await page.getByRole("button", { name: /Open photo 1 of 2/ }).click();
     await page.getByRole("dialog", { name: "Photo 1 of 2" }).waitFor();
     await settle(page);
-    await expect(page).toHaveScreenshot("photo-viewer.png");
+    await screenshot(page, "photo-viewer.png");
   });
 
   test("pitch page", async ({ page }) => {
     await page.goto("/venues/wattlebird-reserve/pitches/main-pitch");
     await settle(page);
-    await expect(page).toHaveScreenshot("pitch.png");
+    await screenshot(page, "pitch.png");
   });
 
   test("not found", async ({ page }) => {
     await page.goto("/no-such-page");
     await settle(page);
-    await expect(page).toHaveScreenshot("not-found.png");
+    await screenshot(page, "not-found.png");
   });
 });
