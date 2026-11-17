@@ -187,6 +187,50 @@ describe("UseMyLocation", () => {
     });
   });
 
+  it("drops a pending press if the person picks another place meanwhile", async () => {
+    stubBrowser();
+    // The lookup is slow; the person picks Brunswick meanwhile.
+    server.use(
+      http.get("*/api/locations/reverse", async () => {
+        await new Promise((r) => setTimeout(r, 50));
+        return HttpResponse.json({ place: null });
+      }),
+    );
+    window.history.replaceState(null, "", "/?lat=-37.8136&lng=144.9631&place=Melbourne");
+    const user = userEvent.setup();
+    render(<UseMyLocation compact />);
+    await user.click(button());
+    window.history.pushState(null, "", "/?lat=-37.767&lng=144.962&place=Brunswick");
+    await new Promise((r) => setTimeout(r, 150));
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("a newer press supersedes a pending one: only the latest searches", async () => {
+    const pending: PositionCallback[] = [];
+    vi.stubGlobal("navigator", {
+      userAgent: globalThis.navigator.userAgent,
+      geolocation: {
+        getCurrentPosition: vi.fn((ok: PositionCallback) => {
+          pending.push(ok);
+        }),
+      },
+    });
+    const user = userEvent.setup();
+    render(<UseMyLocation compact />);
+    await user.click(button());
+    await user.click(button());
+    expect(pending).toHaveLength(2);
+    // The second answers first; the first answers late, from somewhere else.
+    pending[1]?.({ coords: PRECISE } as GeolocationPosition);
+    await waitFor(() => {
+      expect(router.push).toHaveBeenCalledTimes(1);
+    });
+    pending[0]?.({ coords: { latitude: -37.9, longitude: 145.1 } } as GeolocationPosition);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect(String(router.push.mock.calls[0]?.[0])).toContain("lat=-37.8");
+  });
+
   it("still searches there if the locality lookup fails, called 'Your location'", async () => {
     stubBrowser();
     server.use(http.get("*/api/locations/reverse", () => new HttpResponse(null, { status: 503 })));

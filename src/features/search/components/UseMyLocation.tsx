@@ -31,6 +31,12 @@ function placeChosen(): boolean {
   return input !== null && (input === document.activeElement || input.value.trim() !== "");
 }
 
+/** The searched place in the URL, as a comparable string ("" when none). */
+function currentPlace(): string {
+  const { location } = parseSearchState(new URLSearchParams(window.location.search));
+  return location === null ? "" : JSON.stringify(location);
+}
+
 async function localityLabel(lat: number, lng: number): Promise<string> {
   try {
     const res = await fetch(`/api/locations/reverse?${reverseQuery(lat, lng)}`);
@@ -46,8 +52,15 @@ export function UseMyLocation({ autoFill = false, compact = false }: { autoFill?
   const router = useRouter();
   const [status, dispatch] = useReducer(geoReducer, "checking");
   const mounted = useRef(true);
+  /** Only the latest request may search: a newer press supersedes a pending one. */
+  const latestRequest = useRef(0);
 
   function locate(auto: boolean) {
+    const request = ++latestRequest.current;
+    // The place searched when the request started. If it has changed by the time the position and
+    // locality arrive (the person picked another place meanwhile), the late result is dropped.
+    const startedAt = currentPlace();
+    const stale = () => !mounted.current || request !== latestRequest.current || currentPlace() !== startedAt;
     dispatch({ type: "locate" });
     navigator.geolocation.getCurrentPosition(
       (position) => {
@@ -55,8 +68,9 @@ export function UseMyLocation({ autoFill = false, compact = false }: { autoFill?
           const { latitude, longitude } = position.coords;
           setDeviceFix({ lat: latitude, lng: longitude });
           const label = await localityLabel(latitude, longitude);
-          if (!mounted.current) return;
+          if (!mounted.current || request !== latestRequest.current) return;
           dispatch({ type: "located" });
+          if (stale()) return;
           if (auto && placeChosen()) return;
           const location = deviceLocation(latitude, longitude, label);
           if (location === null) return;
@@ -67,7 +81,7 @@ export function UseMyLocation({ autoFill = false, compact = false }: { autoFill?
         })();
       },
       (error) => {
-        if (mounted.current) dispatch({ type: "failed", code: error.code });
+        if (mounted.current && request === latestRequest.current) dispatch({ type: "failed", code: error.code });
       },
       POSITION_OPTIONS,
     );
