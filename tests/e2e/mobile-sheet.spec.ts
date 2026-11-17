@@ -8,8 +8,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 test.skip(({ isMobile }) => !isMobile, "the sheet is the phone layout");
 
-// Snaps settle instantly with reduced motion, so a drag never starts on a handle that's still moving
-// (on CI's slower runners the handle was measured mid-animation and the press missed it).
+// Snaps settle instantly with reduced motion, so each drag starts from a handle at rest. (The drag
+// that failed on CI was a real bug, fixed in SearchLayout: a release read the last move's state before
+// it had rendered.)
 test.use({ reducedMotion: "reduce" });
 
 const SEARCH = "/?lat=-37.814&lng=144.963&place=Melbourne";
