@@ -7,6 +7,7 @@ import { distanceKm } from "@/features/map/view";
 
 import { isNearFix, useDeviceFix } from "../device-fix";
 import { flushSavedView, readSavedView, saveSearchView, type SavedSearchView } from "../history-state";
+import { rememberSearch } from "../last-search";
 import { DEFAULT_LIMIT, MAX_LIMIT } from "../query";
 import { apiQueryString, parseSearchState, type SearchState } from "../state";
 
@@ -67,6 +68,11 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
   const firstPageLimit =
     saved?.loaded !== undefined && saved.loaded > DEFAULT_LIMIT ? Math.min(saved.loaded, MAX_LIMIT) : undefined;
   const results = useVenueSearch(state, { firstPageLimit });
+
+  // Detail pages link back to the last search seen (3.10).
+  useEffect(() => {
+    if (state.location !== null) rememberSearch(`/?${query}`);
+  }, [state.location, query]);
 
   // Keep where the person is on this search saved in its history entry.
   const loadedCount = results.status === "ready" ? results.items.length : null;
