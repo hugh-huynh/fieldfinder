@@ -8,6 +8,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 test.skip(({ isMobile }) => !isMobile, "the sheet is the phone layout");
 
+// Snaps settle instantly with reduced motion, so a drag never starts on a handle that's still moving
+// (on CI's slower runners the handle was measured mid-animation and the press missed it).
+test.use({ reducedMotion: "reduce" });
+
 const SEARCH = "/?lat=-37.814&lng=144.963&place=Melbourne";
 const MARKER = "North West Test Park, 3 pitches";
 

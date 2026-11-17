@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { MediaImage } from "@/features/media/components/MediaImage";
 import { PitchMark } from "@/features/search/components/icons";
@@ -160,27 +160,38 @@ function Lightbox({
     closeButton.current?.focus();
   }, []);
 
-  function onKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-    } else if (event.key === "ArrowRight" && count > 1) {
-      event.preventDefault();
-      step(1);
-    } else if (event.key === "ArrowLeft" && count > 1) {
-      event.preventDefault();
-      step(-1);
-    }
-  }
+  // The keys work wherever focus is while the viewer is open: Safari's Tab skips buttons by default,
+  // so focus may have left the dialog's controls (the page behind is inert, so nothing else uses them).
+  const onKey = useRef<(event: KeyboardEvent) => void>(() => undefined);
+  useEffect(() => {
+    onKey.current = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      } else if (event.key === "ArrowRight" && count > 1) {
+        event.preventDefault();
+        step(1);
+      } else if (event.key === "ArrowLeft" && count > 1) {
+        event.preventDefault();
+        step(-1);
+      }
+    };
+  });
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      onKey.current(event);
+    };
+    document.addEventListener("keydown", listener);
+    return () => {
+      document.removeEventListener("keydown", listener);
+    };
+  }, []);
 
   if (item === undefined) return null;
   return (
-    // Escape and the arrows on the dialog are the APG modal dialog and carousel keys.
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- reason: APG dialog keys (Escape, arrows)
     <dialog
       ref={dialog}
       aria-label={`Photo ${String(index + 1)} of ${String(count)}`}
-      onKeyDown={onKeyDown}
       onCancel={(event) => {
         event.preventDefault();
         close();
