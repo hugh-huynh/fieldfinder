@@ -12,9 +12,9 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/Button";
-import { ACCESS_CLASSES, AMENITY_KEYS, PITCH_FORMATS, SURFACES, type AccessClass } from "@/lib/domain/enums";
+import { ACCESS_CLASSES, AMENITY_KEYS, PITCH_FORMATS, SURFACES } from "@/lib/domain/enums";
 
-import { AMENITY_LABELS, FORMAT_LABELS, SURFACE_LABELS } from "../format";
+import { ACCESS_LABELS, AMENITY_LABELS, FORMAT_LABELS, SURFACE_LABELS } from "../format";
 import { MAX_RADIUS_KM, MIN_RADIUS_KM } from "../query";
 import {
   activeFilterCount,
@@ -40,12 +40,6 @@ import { FiltersButton } from "./FiltersButton";
 //   yet available (C6), never as working controls.
 // - A native <dialog> opened with showModal(): the browser keeps focus inside it and makes the
 //   page behind it inert.
-
-const ACCESS_LABELS: Record<AccessClass, string> = {
-  public: "Public access",
-  booking_required: "Booking required",
-  members_only: "Members only",
-};
 
 const LIGHTING = [
   { value: "any", label: "Any" },

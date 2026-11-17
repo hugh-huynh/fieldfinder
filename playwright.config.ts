@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { LOCAL_MEDIA_PUBLIC_BASE_URL, LOCAL_READER_URL } from "./tests/setup/integration-env";
+
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 const isCI = Boolean(process.env.CI);
@@ -9,6 +11,7 @@ const mobileViewport = { width: 390, height: 844 };
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
@@ -45,6 +48,13 @@ export default defineConfig({
         timeout: 180_000,
         // The WebGL-free stand-in map (PR 3.4): no token or network. NEXT_PUBLIC_ values are baked in at
         // build time, so this only takes effect when this command builds (locally).
-        env: { NEXT_PUBLIC_MAP_ADAPTER: "fake" },
+        // Server-rendered pages (3.10) read the database: always the LOCAL one (these override
+        // .env.local), so E2E never touches a hosted project. Without `pnpm db:start` those pages
+        // fail, and only the E2E_DB=1 specs need them.
+        env: {
+          NEXT_PUBLIC_MAP_ADAPTER: "fake",
+          DATABASE_URL_PUBLIC_READER: LOCAL_READER_URL,
+          MEDIA_PUBLIC_BASE_URL: LOCAL_MEDIA_PUBLIC_BASE_URL,
+        },
       },
 });

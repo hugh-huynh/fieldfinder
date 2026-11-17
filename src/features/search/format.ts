@@ -1,5 +1,5 @@
 import type { AmenitiesDto, PitchSummaryDto } from "@/features/venues/dto";
-import { AMENITY_KEYS, type AmenityKey, type PitchFormat, type Surface } from "@/lib/domain/enums";
+import { AMENITY_KEYS, type AccessClass, type AmenityKey, type PitchFormat, type Surface } from "@/lib/domain/enums";
 
 // Wording for venue cards (PR 3.3). Only confirmed facts are worded: an unconfirmed attribute has no
 // label here, so it is left off the card rather than shown as "no" (CLAUDE.md rule 4).
@@ -9,6 +9,11 @@ export const FORMAT_LABELS: Record<PitchFormat, string> = {
   full: "Full size",
   small_sided: "Small-sided",
   training: "Training",
+};
+export const ACCESS_LABELS: Record<AccessClass, string> = {
+  public: "Public access",
+  booking_required: "Booking required",
+  members_only: "Members only",
 };
 export const AMENITY_LABELS: Record<AmenityKey, string> = {
   parking: "Parking",
