@@ -45,3 +45,33 @@ export function mapboxForward(
   });
   return { handler, requests };
 }
+
+// Reverse lookup ("Use my location", PR 3.9). Synthetic locality.
+
+export const MAPBOX_REVERSE = "https://api.mapbox.com/search/geocode/v6/reverse";
+
+export const sampleLocality = {
+  type: "Feature",
+  id: "dXJuOm1ieHBsYzpzeW50aGV0aWMtMw",
+  geometry: { type: "Point", coordinates: [144.967, -37.8] },
+  properties: {
+    mapbox_id: "dXJuOm1ieHBsYzpzeW50aGV0aWMtMw",
+    feature_type: "locality",
+    name: "Carlton",
+    place_formatted: "Victoria 3053, Australia",
+    coordinates: { longitude: 144.967, latitude: -37.8 },
+  },
+};
+
+export function mapboxReverse(
+  reply: (url: URL) => Response | Promise<Response> = () =>
+    HttpResponse.json({ type: "FeatureCollection", features: [sampleLocality] }),
+) {
+  const requests: URL[] = [];
+  const handler = http.get(MAPBOX_REVERSE, ({ request }) => {
+    const url = new URL(request.url);
+    requests.push(url);
+    return reply(url);
+  });
+  return { handler, requests };
+}

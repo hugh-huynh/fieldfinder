@@ -814,6 +814,35 @@
           "longitude"
         ]
       },
+      "ReverseResponse": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "Carlton"
+              },
+              "label": {
+                "type": "string",
+                "example": "Carlton, Victoria 3053, Australia"
+              }
+            },
+            "required": [
+              "name",
+              "label"
+            ],
+            "description": "The locality there, or null if there isn't one (outside Australia, at sea)."
+          }
+        },
+        "required": [
+          "place"
+        ]
+      },
       "AdminVenueResponse": {
         "type": "object",
         "properties": {
@@ -1901,6 +1930,66 @@
                 },
                 "schema": {
                   "$ref": "#/components/schemas/SuggestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/api/locations/reverse": {
+      "get": {
+        "summary": "The locality at a position, for \"Use my location\"",
+        "description": "The Australian locality (suburb or town) at a device's position (Mapbox Geocoding). Send coordinates rounded to 2 decimal places (about 1.1 km); the server rounds them again before the lookup and never logs them. Never cached.",
+        "operationId": "locations.reverse",
+        "tags": [
+          "Public"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d{1,3}(\\.\\d{1,6})?$"
+            },
+            "required": true,
+            "name": "lat",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d{1,3}(\\.\\d{1,6})?$"
+            },
+            "required": true,
+            "name": "lng",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The locality, or null if there isn't one.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "place": {
+                    "name": "Carlton",
+                    "label": "Carlton, Victoria 3053, Australia"
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseResponse"
                 }
               }
             }

@@ -3,9 +3,14 @@
 import { useSearchParams } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { distanceKm } from "@/features/map/view";
+
+import { isNearFix, useDeviceFix } from "../device-fix";
 import { flushSavedView, readSavedView, saveSearchView, type SavedSearchView } from "../history-state";
 import { DEFAULT_LIMIT, MAX_LIMIT } from "../query";
 import { apiQueryString, parseSearchState, type SearchState } from "../state";
+
+import type { VenueSearchResultDto } from "../search";
 
 import { useVenueSearch } from "./useVenueSearch";
 
@@ -32,6 +37,11 @@ interface SearchResults {
   selectedId: string | null;
   /** Chooses a marker, or un-chooses it if it's already chosen. */
   toggleSelected: (id: string) => void;
+  /**
+   * The distance to show for a venue. For a "near me" search (3.9) it's from the device's precise
+   * position, which stays in memory (ADR-0005); otherwise the API's, from the search centre.
+   */
+  distanceMeters: (venue: VenueSearchResultDto) => number;
 }
 
 /** A venue id and the search (canonical API query) it was highlighted or chosen in. */
@@ -98,6 +108,9 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
       : null;
   const selectedId = loaded(selected);
 
+  const device = useDeviceFix();
+  const nearMe = isNearFix(state.location, device) ? device : null;
+
   const value: SearchResults = {
     state,
     search,
@@ -114,6 +127,10 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
     toggleSelected: (id) => {
       setSelected(selectedId === id ? null : { search, id });
     },
+    distanceMeters: (venue) =>
+      nearMe === null
+        ? venue.distanceMeters
+        : Math.round(distanceKm(nearMe, { lat: venue.location.latitude, lng: venue.location.longitude }) * 1000),
   };
 
   return <SearchResultsContext value={value}>{children}</SearchResultsContext>;

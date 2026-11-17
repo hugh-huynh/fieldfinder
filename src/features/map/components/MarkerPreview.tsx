@@ -17,7 +17,16 @@ import { PitchMark } from "@/features/search/components/icons";
 // in the mockup, 3.8): the person can still use the map and the list. Escape
 // or Close shuts it and puts focus back on the marker (the parent does that in onClose).
 
-export function MarkerPreview({ venue, onClose }: { venue: VenueSearchResultDto; onClose: () => void }) {
+export function MarkerPreview({
+  venue,
+  distanceMeters = venue.distanceMeters,
+  onClose,
+}: {
+  venue: VenueSearchResultDto;
+  /** From the device's precise position when the search is "near me" (3.9); else the API's. */
+  distanceMeters?: number;
+  onClose: () => void;
+}) {
   const titleId = useId();
   const link = useRef<HTMLAnchorElement>(null);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
@@ -75,8 +84,7 @@ export function MarkerPreview({ venue, onClose }: { venue: VenueSearchResultDto;
           </Link>
         </p>
         <p className="mt-0.5 text-xs text-muted">
-          {pitchCountLabel(venue.publishedPitchCount, venue.matchingPitchCount)} ·{" "}
-          {formatDistance(venue.distanceMeters)}
+          {pitchCountLabel(venue.publishedPitchCount, venue.matchingPitchCount)} · {formatDistance(distanceMeters)}
         </p>
         {/* A photo whose licence needs a credit carries it wherever it's shown (ADR-0006). */}
         {image?.attribution ? (

@@ -3,6 +3,7 @@ import { Suspense, type ReactNode } from "react";
 import { SearchMap } from "@/features/map/components/SearchMap";
 import { ResultsPanel, ResultsSkeleton } from "@/features/search/components/ResultsPanel";
 import { SearchResultsProvider } from "@/features/search/components/SearchResultsContext";
+import { UseMyLocation } from "@/features/search/components/UseMyLocation";
 import { MapPlaceholder, SearchLayout } from "@/features/search/components/SearchLayout";
 import { parseSearchState, type SearchLocation } from "@/features/search/state";
 
@@ -19,12 +20,23 @@ function toUrlSearchParams(raw: Awaited<SearchParams>): URLSearchParams {
   return params;
 }
 
-function ListColumn({ location, results }: { location: SearchLocation | null; results: ReactNode }) {
+function ListColumn({
+  location,
+  results,
+  locate = true,
+}: {
+  location: SearchLocation | null;
+  results: ReactNode;
+  /** "Use my location" (3.9); left out of the loading fallback. */
+  locate?: boolean;
+}) {
   if (location === null) {
     return (
       <div className="max-w-xl">
         <h1 className="text-2xl font-semibold text-ink">Find a soccer field</h1>
         <p className="mt-2 text-muted">Search a suburb or place to see public soccer fields nearby.</p>
+        {/* Fills in the place by itself only when location access is already allowed. */}
+        {locate ? <UseMyLocation autoFill /> : null}
       </div>
     );
   }
@@ -34,6 +46,7 @@ function ListColumn({ location, results }: { location: SearchLocation | null; re
         {/* A place without a name is a "Search this area" search (3.6), or a hand-made link. */}
         {location.label === null ? "Soccer fields in this area" : `Soccer fields near ${location.label}`}
       </h1>
+      {locate ? <UseMyLocation compact /> : null}
       {results}
     </div>
   );
@@ -48,7 +61,7 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
         fallback={
           <SearchLayout
             map={<MapPlaceholder />}
-            list={<ListColumn location={location} results={<ResultsSkeleton />} />}
+            list={<ListColumn location={location} results={<ResultsSkeleton />} locate={false} />}
           />
         }
       >

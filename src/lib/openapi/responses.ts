@@ -8,6 +8,7 @@ import type { UnusedMediaPage } from "@/features/media/admin-service";
 import { RIGHTS_BASES } from "@/features/media/admin-schema";
 import type { AdminPitchDto } from "@/features/pitches/admin-dto";
 import type { PitchDto } from "@/features/pitches/dto";
+import type { ReversePlaceDto, ReverseResponse } from "@/features/locations/reverse";
 import type { LocationSuggestionDto, SuggestResponse } from "@/features/locations/suggest";
 import type { VenueSearchResponse, VenueSearchResultDto } from "@/features/search/search";
 import type { AdminVenueDto } from "@/features/venues/admin-dto";
@@ -188,6 +189,21 @@ export const suggestResponseSchema = z
   .object({ suggestions: z.array(locationSuggestion).max(5) })
   .meta({ id: "SuggestResponse" });
 
+const reversePlace = z
+  .object({
+    name: z.string().meta({ example: "Carlton" }),
+    label: z.string().meta({ example: "Carlton, Victoria 3053, Australia" }),
+  })
+  .meta({ id: "ReversePlace" });
+
+export const reverseResponseSchema = z
+  .object({
+    place: reversePlace
+      .nullable()
+      .meta({ description: "The locality there, or null if there isn't one (outside Australia, at sea)." }),
+  })
+  .meta({ id: "ReverseResponse" });
+
 // --- Admin -------------------------------------------------------------------------------------
 
 const adminVenue = z
@@ -325,6 +341,8 @@ export type DriftChecks = [
   Check<Same<Shape<typeof pitchDetailResponseSchema>, PitchDetailResponse>>,
   Check<Same<Shape<typeof locationSuggestion>, LocationSuggestionDto>>,
   Check<Same<Shape<typeof suggestResponseSchema>, SuggestResponse>>,
+  Check<Same<Shape<typeof reversePlace>, ReversePlaceDto>>,
+  Check<Same<Shape<typeof reverseResponseSchema>, ReverseResponse>>,
   Check<Same<Shape<typeof adminVenue>, AdminVenueDto>>,
   Check<Same<Shape<typeof adminPitch>, AdminPitchDto>>,
   Check<Same<Shape<typeof adminMedia>, AdminMediaDto>>,

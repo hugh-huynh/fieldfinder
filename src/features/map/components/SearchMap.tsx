@@ -40,7 +40,8 @@ const PREVIEW_INSET_PX = 128;
 const CONTROLS_INSET_PX = 64;
 
 export function SearchMap() {
-  const { state, search, saved, results, highlightedId, selectedId, toggleSelected } = useSearchResults();
+  const { state, search, saved, results, highlightedId, selectedId, toggleSelected, distanceMeters } =
+    useSearchResults();
   const router = useRouter();
   const sheet = useSheet();
   /** How many times Recentre was pressed, and the history entry's saved view it was last pressed on. */
@@ -149,6 +150,7 @@ export function SearchMap() {
         <MarkerPreview
           key={chosen.id}
           venue={chosen}
+          distanceMeters={distanceMeters(chosen)}
           onClose={() => {
             closePreview(chosen.id);
           }}

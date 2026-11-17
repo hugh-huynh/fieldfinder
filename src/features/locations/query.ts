@@ -38,3 +38,46 @@ export function suggestQuery(input: string): string | null {
   const result = suggestQuerySchema.safeParse({ q: input });
   return result.success ? result.data.q : null;
 }
+
+// --- Reverse geocoding for "Use my location" (PR 3.9) -------------------------------------------
+// The device's position, already rounded to 2 dp (~1.1 km) on the client (ADR-0005), becomes a
+// readable locality for the search box. The server rounds again before anything leaves it.
+
+/** Decimal places a device position is rounded to before it leaves the browser (ADR-0005). */
+export const DEVICE_DECIMALS = 2;
+
+const coordinate = (min: number, max: number) =>
+  z
+    .string()
+    .regex(/^-?\d{1,3}(\.\d{1,6})?$/)
+    .transform(Number)
+    .pipe(z.number().min(min).max(max));
+
+export const reverseQuerySchema = z.object({ lat: coordinate(-90, 90), lng: coordinate(-180, 180) }).strict();
+
+export interface ReversePlaceDto {
+  /** Short name, e.g. "Carlton". */
+  name: string;
+  /** e.g. "Carlton, Victoria 3053, Australia". */
+  label: string;
+}
+
+export interface ReverseResponse {
+  /** Null when there's no locality there (e.g. outside Australia, or at sea). */
+  place: ReversePlaceDto | null;
+}
+
+const roundDevice = (value: number) => Math.round(value * 10 ** DEVICE_DECIMALS) / 10 ** DEVICE_DECIMALS || 0;
+
+/** The query string for GET /api/locations/reverse: coordinates rounded to 2 dp. */
+export function reverseQuery(lat: number, lng: number): string {
+  return new URLSearchParams({
+    lat: roundDevice(lat).toFixed(DEVICE_DECIMALS),
+    lng: roundDevice(lng).toFixed(DEVICE_DECIMALS),
+  }).toString();
+}
+
+/** "Brunswick, Victoria 3056, Australia" → "Brunswick, Victoria 3056": every place here is in Australia. */
+export function withoutCountry(label: string): string {
+  return label.replace(/,\s*Australia$/, "");
+}

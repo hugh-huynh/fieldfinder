@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-import type { LocationSuggestionDto } from "@/features/locations/query";
+import { withoutCountry, type LocationSuggestionDto } from "@/features/locations/query";
 
 import { parseSearchState, placeLocation, serializeSearchState, type SearchFilters } from "../state";
 
@@ -14,11 +14,6 @@ import { LocationSearch } from "./LocationSearch";
 // filters (PR 3.1 state model). Applying filters (3.7) goes to the results for the current place
 // with the new filters, from any page.
 
-/** "Brunswick, Victoria 3056, Australia" → "Brunswick, Victoria 3056": every result is in Australia. */
-function placeLabel(suggestion: LocationSuggestionDto): string {
-  return suggestion.label.replace(/,\s*Australia$/, "");
-}
-
 export function SearchBar() {
   const router = useRouter();
   const params = useSearchParams();
@@ -26,7 +21,7 @@ export function SearchBar() {
   const label = state.location?.label ?? "";
 
   function onSelect(suggestion: LocationSuggestionDto) {
-    const location = placeLocation(suggestion.latitude, suggestion.longitude, placeLabel(suggestion));
+    const location = placeLocation(suggestion.latitude, suggestion.longitude, withoutCountry(suggestion.label));
     if (location === null) return;
     const query = serializeSearchState({ location, filters: state.filters });
     router.push(`/?${query}`);

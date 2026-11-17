@@ -3,6 +3,7 @@ import "server-only";
 import { OpenAPIRegistry, OpenApiGeneratorV31 } from "@asteasolutions/zod-to-openapi";
 import { z } from "zod";
 
+import { reverseQuerySchema } from "@/features/locations/reverse";
 import { suggestQuerySchema } from "@/features/locations/suggest";
 import { mediaPatchSchema, mediaUploadSchema, unusedMediaQuerySchema } from "@/features/media/admin-schema";
 import type { AdminPitchDto } from "@/features/pitches/admin-dto";
@@ -33,6 +34,7 @@ import {
   adminVerificationResponseSchema,
   errorSchema,
   pitchDetailResponseSchema,
+  reverseResponseSchema,
   suggestResponseSchema,
   venueDetailResponseSchema,
   venueSearchResponseSchema,
@@ -412,6 +414,26 @@ export function buildOpenApiDocument() {
                 longitude: 144.96,
               },
             ],
+          }),
+        },
+        ...PUBLIC_ERRORS,
+      },
+    }),
+  );
+
+  registry.registerPath(
+    publicOperation("locations.reverse", {
+      method: "get",
+      path: "/api/locations/reverse",
+      summary: 'The locality at a position, for "Use my location"',
+      description:
+        "The Australian locality (suburb or town) at a device's position (Mapbox Geocoding). Send coordinates rounded to 2 decimal places (about 1.1 km); the server rounds them again before the lookup and never logs them. Never cached.",
+      request: { query: reverseQuerySchema },
+      responses: {
+        200: {
+          description: "The locality, or null if there isn't one.",
+          content: json(reverseResponseSchema, {
+            place: { name: "Carlton", label: "Carlton, Victoria 3053, Australia" },
           }),
         },
         ...PUBLIC_ERRORS,

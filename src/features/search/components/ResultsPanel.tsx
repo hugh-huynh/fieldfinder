@@ -20,7 +20,7 @@ import { VenueCard } from "./VenueCard";
 // the list scrolls back to where the person left it once the venues are in (3.6).
 
 export function ResultsPanel() {
-  const { state, search, saved, results, setHighlightedId, clearHighlight } = useSearchResults();
+  const { state, search, saved, results, setHighlightedId, clearHighlight, distanceMeters } = useSearchResults();
   const list = useRef<HTMLUListElement>(null);
   /** Index of the first venue a "Show more" will add; focused once it arrives. */
   const focusFrom = useRef<number | null>(null);
@@ -122,7 +122,7 @@ export function ResultsPanel() {
                   clearHighlight(venue.id);
                 }}
               >
-                <VenueCard venue={venue} />
+                <VenueCard venue={venue} distanceMeters={distanceMeters(venue)} />
               </li>
             ))}
           </ul>
