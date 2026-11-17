@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { availableAmenities, formatDistance, pitchCountLabel, pitchSummaryLabels } from "./format";
+import { availableAmenities, creditLine, formatDistance, pitchCountLabel, pitchSummaryLabels } from "./format";
 
 describe("formatDistance", () => {
   it.each([
@@ -48,5 +48,14 @@ describe("availableAmenities", () => {
   it("keeps 'yes' only, in the canonical order", () => {
     expect(availableAmenities({ cafe: "yes", toilets: "no", parking: "yes" })).toEqual(["parking", "cafe"]);
     expect(availableAmenities({})).toEqual([]);
+  });
+});
+
+describe("creditLine", () => {
+  it("adds 'Photo:' once, whether or not the credit already has it", () => {
+    expect(creditLine("A. Photographer, CC BY 4.0")).toBe("Photo: A. Photographer, CC BY 4.0");
+    expect(creditLine("Photo: A. Photographer, CC BY 4.0")).toBe("Photo: A. Photographer, CC BY 4.0");
+    expect(creditLine("photo by A. Photographer")).toBe("photo by A. Photographer");
+    expect(creditLine("  Photographer's own  ")).toBe("Photo: Photographer's own");
   });
 });

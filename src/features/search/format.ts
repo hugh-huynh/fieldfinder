@@ -53,3 +53,8 @@ export function pitchSummaryLabels(summary: PitchSummaryDto): string[] {
 export function availableAmenities(amenities: AmenitiesDto): AmenityKey[] {
   return AMENITY_KEYS.filter((key) => amenities[key] === "yes");
 }
+
+/** A photo's credit line (ADR-0006): "Photo: …", without doubling a "Photo:" the credit already has. */
+export function creditLine(text: string): string {
+  return /^photo\b/i.test(text.trim()) ? text.trim() : `Photo: ${text.trim()}`;
+}
