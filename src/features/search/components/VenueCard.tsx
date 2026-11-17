@@ -1,13 +1,20 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
 import { Pill } from "@/components/ui/Pill";
+import { MediaImage } from "@/features/media/components/MediaImage";
 import type { VenueSearchResultDto } from "@/features/search/search";
 
-import { AMENITY_LABELS, availableAmenities, formatDistance, pitchCountLabel, pitchSummaryLabels } from "../format";
+import {
+  AMENITY_LABELS,
+  availableAmenities,
+  creditLine,
+  formatDistance,
+  pitchCountLabel,
+  pitchSummaryLabels,
+} from "../format";
 
 import { PitchMark } from "./icons";
 
@@ -42,14 +49,13 @@ export function VenueCard({
             <PitchMark className="size-10 text-border-strong" />
           </div>
         ) : (
-          // Unoptimised: images are already resized WebP/AVIF from the media pipeline (PR 2.12).
-          <Image
+          <MediaImage
             src={image.url}
             alt={image.alt}
             width={image.width}
             height={image.height}
-            unoptimized
-            loading="lazy"
+            // The thumbnail box: w-32 on phones, w-44 from sm (3.12: srcset when optimised).
+            sizes="(min-width: 640px) 176px, 128px"
             onError={() => {
               setFailedUrl(image.url);
             }}
@@ -91,7 +97,7 @@ export function VenueCard({
         ) : null}
 
         {image?.attribution ? (
-          <p className="mt-auto pt-1 text-[0.6875rem] text-muted">Photo: {image.attribution.text}</p>
+          <p className="mt-auto pt-1 text-[0.6875rem] text-muted">{creditLine(image.attribution.text)}</p>
         ) : null}
       </div>
     </article>

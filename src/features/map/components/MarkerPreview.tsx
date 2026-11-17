@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
+import { MediaImage } from "@/features/media/components/MediaImage";
 import type { VenueSearchResultDto } from "@/features/search/search";
-import { formatDistance, pitchCountLabel } from "@/features/search/format";
+import { creditLine, formatDistance, pitchCountLabel } from "@/features/search/format";
 import { PitchMark } from "@/features/search/components/icons";
 
 // The second step of choosing on the map (spec §1 and §3, PR 3.5). Choosing a marker opens this
@@ -59,12 +59,12 @@ export function MarkerPreview({
             <PitchMark className="size-8 text-border-strong" />
           </div>
         ) : (
-          <Image
+          <MediaImage
             src={image.url}
             alt={image.alt}
             width={image.width}
             height={image.height}
-            unoptimized
+            sizes="96px"
             onError={() => {
               setFailedUrl(image.url);
             }}
@@ -88,7 +88,7 @@ export function MarkerPreview({
         </p>
         {/* A photo whose licence needs a credit carries it wherever it's shown (ADR-0006). */}
         {image?.attribution ? (
-          <p className="mt-0.5 text-[0.6875rem] break-words text-muted">Photo: {image.attribution.text}</p>
+          <p className="mt-0.5 text-[0.6875rem] break-words text-muted">{creditLine(image.attribution.text)}</p>
         ) : null}
       </div>
       {/* Above the stretched link, so it closes rather than navigates. */}
