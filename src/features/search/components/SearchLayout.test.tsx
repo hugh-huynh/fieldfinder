@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -116,5 +116,32 @@ describe("SearchLayout on a phone", () => {
     await waitFor(() => {
       expect(splitter()).toHaveAttribute("aria-valuetext", "Split view");
     });
+  });
+
+  it("settles a drag where it's released, even if the last move hasn't rendered yet", async () => {
+    // The container has to be measured for drags: a stand-in ResizeObserver reports a phone's 716 px.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe() {
+          this.callback([{ contentRect: { height: 716 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+        }
+        disconnect() {}
+      },
+    );
+    HTMLElement.prototype.setPointerCapture = () => undefined;
+    renderPage();
+    await screen.findByRole("list", { name: "Venues" });
+    const handleArea = splitter().parentElement as HTMLElement;
+
+    // Press, move and release in one batch: the release runs before the move's state has rendered,
+    // as on a slow device or a quick flick. From Split (358 px), 300 px up lands on List.
+    act(() => {
+      fireEvent.pointerDown(handleArea, { clientY: 600, pointerId: 1 });
+      fireEvent.pointerMove(handleArea, { clientY: 300, pointerId: 1 });
+      fireEvent.pointerUp(handleArea, { clientY: 300, pointerId: 1 });
+    });
+    expect(splitter()).toHaveAttribute("aria-valuetext", "List view");
   });
 });

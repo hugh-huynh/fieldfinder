@@ -127,11 +127,15 @@ export function SearchLayout({ list, map }: { list: ReactNode; map: ReactNode })
     setDragPx(clampSheet(start.startPx + dy, containerPx));
   }
 
-  function onPointerUp() {
+  function onPointerUp(event: PointerEvent<HTMLDivElement>) {
     const start = drag.current;
     drag.current = null;
-    if (start?.moved === true && dragPx !== null && containerPx !== null) moveTo(nearestSnap(dragPx, containerPx));
     setDragPx(null);
+    if (start?.moved !== true || containerPx === null) return;
+    // Where the sheet ends up comes from the release itself, not from `dragPx`: the last move's state
+    // update may not have rendered yet when the release arrives (a quick flick, a slow device), and a
+    // stale value would leave the sheet where it started.
+    moveTo(nearestSnap(clampSheet(start.startPx + (start.y - event.clientY), containerPx), containerPx));
   }
 
   function onSplitterKey(event: KeyboardEvent<HTMLDivElement>) {
