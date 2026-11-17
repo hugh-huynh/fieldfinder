@@ -28,6 +28,8 @@ async function mockSuggest(page: Page) {
 }
 
 async function axe(page: Page) {
+  // After a client-side navigation Next.js fills in <title> a moment later; scan once it's there.
+  await expect(page).toHaveTitle(/FieldFinder/);
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
     // Real seeded venues sit close together, so their markers can overlap (no clustering yet: a known
