@@ -122,6 +122,18 @@ curl -s "$FF/api/locations/suggest?q=Brunswick"
 
 `q` is 2–80 characters of letters, digits, spaces and common address punctuation. Up to 5 Australian results, biased towards Melbourne, with coordinates rounded to 3 decimal places. Responses are never cached (Mapbox's terms for temporary geocoding), so debounce in the client. A Mapbox outage is a 503.
 
+### Location at a position: `GET /api/locations/reverse?lat=&lng=`
+
+```sh
+curl -s "$FF/api/locations/reverse?lat=-37.80&lng=144.97"
+```
+
+```json
+{ "place": { "name": "Carlton", "label": "Carlton, Victoria 3053, Australia" } }
+```
+
+For "Use my location". Send the device's coordinates rounded to 2 decimal places (about 1.1 km, ADR-0005); the server rounds them again before asking Mapbox and never logs them. Returns the Australian suburb or town there, or `{ "place": null }` if there isn't one (outside Australia, at sea). Never cached; a Mapbox outage is a 503. Shares the `/api/locations/` rate limit with suggest.
+
 ## Admin API
 
 For curating data. Operators: see [admin-operations.md](admin-operations.md) for minting tokens and the publishing workflow.

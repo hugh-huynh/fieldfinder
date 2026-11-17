@@ -18,7 +18,16 @@ import { PitchMark } from "./icons";
 // hear one link per venue. No ratings, prices, availability or save button (rule 4). A photo that
 // fails to load (e.g. unpublished while the page was open) falls back to the placeholder.
 
-export function VenueCard({ venue, headingLevel = 2 }: { venue: VenueSearchResultDto; headingLevel?: 2 | 3 }) {
+export function VenueCard({
+  venue,
+  headingLevel = 2,
+  distanceMeters = venue.distanceMeters,
+}: {
+  venue: VenueSearchResultDto;
+  headingLevel?: 2 | 3;
+  /** From the device's precise position when the search is "near me" (3.9); else the API's. */
+  distanceMeters?: number;
+}) {
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const facts = pitchSummaryLabels(venue.pitchSummary);
   const facilities = availableAmenities(venue.amenities);
@@ -59,7 +68,7 @@ export function VenueCard({ venue, headingLevel = 2 }: { venue: VenueSearchResul
           </Link>
         </Heading>
         <p className="text-sm text-muted">
-          {venue.suburb} · {formatDistance(venue.distanceMeters)}
+          {venue.suburb} · {formatDistance(distanceMeters)}
         </p>
 
         <ul aria-label="Pitches" className="mt-1 flex flex-wrap gap-1.5">

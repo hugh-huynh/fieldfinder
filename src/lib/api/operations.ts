@@ -7,7 +7,13 @@ import type { AdminScope } from "@/lib/auth/scopes";
 // Routing still comes from the folder path; src/lib/openapi/document.test.ts checks that each route
 // file uses the name its path has in the contract.
 
-export const PUBLIC_OPERATIONS = ["venues.search", "venues.detail", "pitches.detail", "locations.suggest"] as const;
+export const PUBLIC_OPERATIONS = [
+  "venues.search",
+  "venues.detail",
+  "pitches.detail",
+  "locations.suggest",
+  "locations.reverse",
+] as const;
 
 export const ADMIN_OPERATIONS = {
   "admin.venues.create": "venues:write",

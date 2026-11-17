@@ -12,7 +12,7 @@ import { allKeys, crawlPublicApi, loadTruth, type Exchange, type Truth } from ".
 // through any public data route, whatever the reason it isn't public (draft, archived, a venue with
 // no published pitch, a pitch under an unpublished venue, a draft or archived image). The expected
 // public set comes from the base tables (crawl.ts), not from the views being tested.
-// GET /api/locations/suggest is left out: it serves Mapbox's data, none of ours.
+// GET /api/locations/suggest and /reverse are left out: they serve Mapbox's data, none of ours.
 
 /** Field names that exist only on private records or admin DTOs. None may appear in a public body. */
 const PRIVATE_FIELDS = [

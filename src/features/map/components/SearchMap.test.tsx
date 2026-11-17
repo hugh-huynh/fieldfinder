@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setDeviceFix } from "@/features/search/device-fix";
 import { flushSavedView } from "@/features/search/history-state";
 
 import { server } from "../../../../tests/msw/server";
@@ -524,6 +525,34 @@ describe("SearchMap", () => {
       expect(saved?.query).toBe(CANONICAL);
       expect(saved?.loaded).toBe(3);
       expect(Object.keys(saved?.bounds ?? {}).sort()).toEqual(["east", "north", "south", "west"]);
+    });
+  });
+
+  describe("near me (3.9)", () => {
+    afterEach(() => {
+      setDeviceFix(null);
+    });
+
+    it("shows distances from the device's precise position, which stays in memory", async () => {
+      // The URL has the fix rounded to 2 dp; the venue is about 610 m from the precise fix, though the
+      // API (from the rounded centre) says 1.0 km.
+      setDeviceFix({ lat: -37.801234, lng: 144.966789 });
+      search = "lat=-37.8&lng=144.97&place=Carlton";
+      server.use(searchHandler([{ items: [venueResult(1)], totalCount: 1, nextCursor: null }]));
+      const user = userEvent.setup();
+      renderSearch();
+      const list = await screen.findByRole("list", { name: "Venues" });
+      expect(list).toHaveTextContent("610 m");
+      expect(list).not.toHaveTextContent("1.0 km");
+      await user.click(marker("Test Venue 1, 2 pitches"));
+      expect(screen.getByRole("dialog")).toHaveTextContent("610 m");
+    });
+
+    it("uses the API's distance for any other search", async () => {
+      setDeviceFix({ lat: -37.801234, lng: 144.966789 });
+      server.use(searchHandler([{ items: [venueResult(1)], totalCount: 1, nextCursor: null }]));
+      renderSearch();
+      expect(await screen.findByRole("list", { name: "Venues" })).toHaveTextContent("1.0 km");
     });
   });
 
