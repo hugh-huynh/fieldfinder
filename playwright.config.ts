@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { LOCAL_MEDIA_PUBLIC_BASE_URL, LOCAL_READER_URL } from "./tests/setup/integration-env";
+import { LOCAL_MEDIA_PUBLIC_BASE_URL, LOCAL_READER_URL, TEST_CURSOR_SECRET } from "./tests/setup/integration-env";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
@@ -55,6 +55,8 @@ export default defineConfig({
           NEXT_PUBLIC_MAP_ADAPTER: "fake",
           DATABASE_URL_PUBLIC_READER: LOCAL_READER_URL,
           MEDIA_PUBLIC_BASE_URL: LOCAL_MEDIA_PUBLIC_BASE_URL,
+          // Signs search page bookmarks for GET /api/venues: the test-only value, valid nowhere else.
+          SEARCH_CURSOR_SECRET: TEST_CURSOR_SECRET,
         },
       },
 });
