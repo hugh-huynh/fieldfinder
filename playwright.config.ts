@@ -12,6 +12,11 @@ const mobileViewport = { width: 390, height: 844 };
 export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
+  // Screenshot baselines (tests/e2e/visual.spec.ts, Linux only): small anti-aliasing differences
+  // between runs are tolerated; real layout or colour changes are not.
+  expect: {
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: "disabled", caret: "hide" },
+  },
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
