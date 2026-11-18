@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CONSENT_STORAGE_KEY, setConsent } from "../consent";
@@ -194,6 +195,38 @@ describe("TrackView", () => {
       source: "list",
       page_location: `${window.location.origin}/venues/ironbark-park`,
     });
+  });
+
+  it("sends view_venue on a hydrated load with consent already given, after the page view", async () => {
+    setConsent("granted");
+    go("/venues/ironbark-park");
+    const page = (
+      <>
+        <Analytics />
+        <TrackView kind="venue" venueId={VENUE} />
+      </>
+    );
+    // Server-rendered first: consent is "pending" while hydrating, so analytics starts a render later.
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(page);
+    document.body.append(container);
+    render(page, { container, hydrate: true });
+    await waitFor(() => {
+      expect(events().map((entry) => entry[1])).toEqual(["page_view", "view_venue"]);
+    });
+  });
+
+  it("sends no view without consent, and the view once the person allows analytics", async () => {
+    go("/venues/ironbark-park");
+    render(
+      <>
+        <Analytics />
+        <TrackView kind="venue" venueId={VENUE} />
+      </>,
+    );
+    expect(window.dataLayer).toBeUndefined();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Allow analytics" }));
+    expect(events().map((entry) => entry[1])).toEqual(["page_view", "view_venue"]);
   });
 
   it("sends view_pitch as direct when nothing noted where it came from", () => {

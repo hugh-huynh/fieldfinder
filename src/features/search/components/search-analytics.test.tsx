@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { startAnalytics } from "@/features/analytics/gtag";
@@ -114,6 +115,44 @@ describe("search events", () => {
         ["no_search_results", { search_type: "area", radius_km: 10, filter_count: 0, filter_types: "none" }],
       ]);
     });
+  });
+
+  it("sends no_search_results again on returning to an empty search after one with results", async () => {
+    // Same place: radius 5 km finds nothing, 10 km finds a venue.
+    server.use(
+      http.get("*/api/venues", ({ request }) =>
+        HttpResponse.json(
+          new URL(request.url).searchParams.get("radiusKm") === "5"
+            ? { items: [], totalCount: 0, nextCursor: null }
+            : { items: [VENUE_1], totalCount: 1, nextCursor: null },
+        ),
+      ),
+    );
+    const base = search;
+    const tree = () => (
+      <SearchResultsProvider>
+        <SearchMap />
+        <ResultsPanel />
+      </SearchResultsProvider>
+    );
+    search = `${base}&radiusKm=5`;
+    const { rerender } = render(tree());
+    await screen.findByText("No venues found.");
+    await waitFor(() => {
+      expect(sent().filter(([name]) => name === "no_search_results")).toHaveLength(1);
+    });
+    search = base;
+    rerender(tree());
+    await screen.findByRole("list", { name: "Venues" });
+    search = `${base}&radiusKm=5`;
+    rerender(tree());
+    await screen.findByText("No venues found.");
+    await waitFor(() => {
+      expect(sent().filter(([name]) => name === "no_search_results")).toHaveLength(2);
+    });
+    // A rerender of the same empty search doesn't count it again.
+    rerender(tree());
+    expect(sent().filter(([name]) => name === "no_search_results")).toHaveLength(2);
   });
 
   it("sends select_map_marker on choosing a marker, not on closing its preview", async () => {

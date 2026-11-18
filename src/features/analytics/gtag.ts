@@ -28,6 +28,19 @@ const MEASUREMENT_ID = /^G-[A-Z0-9]{4,16}$/;
 
 let active: { id: string; location: string; referrer: string | null } | null = null;
 
+/** Told when analytics starts or stops, so events waiting for it (TrackView) can be sent then. */
+const listeners = new Set<() => void>();
+function notify() {
+  for (const listener of listeners) listener();
+}
+
+export function subscribeAnalytics(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 /** The configured measurement id, or null (no id, or not a GA4 one: analytics stays off). */
 export function measurementId(value = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID): string | null {
   const trimmed = value?.trim() ?? "";
@@ -93,6 +106,7 @@ export function startAnalytics(id: string, location: string, referrer: string | 
     script.dataset.ffGtag = id;
     document.head.append(script);
   }
+  notify();
 }
 
 /** Every cookie name GA4 sets (`_ga`, `_ga_<stream>`). */
@@ -106,7 +120,9 @@ function analyticsCookieNames(): string[] {
 /** Stops sending (consent withdrawn) and removes GA4's cookies from this site and its parent domains. */
 export function stopAnalytics(id: string): void {
   setDisabled(id, true);
+  const wasActive = active !== null;
   active = null;
+  if (wasActive) notify();
   const labels = window.location.hostname.split(".");
   const domains = labels.map((_, index) => labels.slice(index).join(".")).filter((d) => d.includes("."));
   for (const name of analyticsCookieNames()) {

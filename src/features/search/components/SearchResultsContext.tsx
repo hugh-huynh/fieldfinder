@@ -137,9 +137,10 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
       if (kind === "nearby") track({ name: "nearby_search", params: { result_count: totalCount, ...filters } });
       else track({ name: "search_fields", params: { search_type: kind, result_count: totalCount, ...filters } });
     }
-    if (totalCount === 0 && tracked.current.search !== search) {
+    // Every completed search is noted, so a later return to an empty one counts it again.
+    if (tracked.current.search !== search) {
       tracked.current.search = search;
-      track({ name: "no_search_results", params: { search_type: kind, ...filters } });
+      if (totalCount === 0) track({ name: "no_search_results", params: { search_type: kind, ...filters } });
     }
   }, [search, state, totalCount, near]);
 
