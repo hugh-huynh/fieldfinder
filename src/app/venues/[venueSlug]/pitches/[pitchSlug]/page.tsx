@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteFooter } from "@/components/SiteFooter";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
@@ -7,6 +8,7 @@ import { BackToResults } from "@/features/venues/components/BackToResults";
 import { FacilityList } from "@/features/venues/components/FacilityList";
 import { Gallery } from "@/features/venues/components/Gallery";
 import { VenueLocation } from "@/features/venues/components/VenueLocation";
+import { TrackView } from "@/features/analytics/components/TrackView";
 import { getPitchDetail } from "@/features/venues/detail";
 import { pitchSpecs } from "@/features/venues/pitch-specs";
 import { venuePath } from "@/features/venues/route-target";
@@ -54,75 +56,79 @@ export default async function PitchPage({ params }: { params: Params }) {
   const photos = [...media, ...venueMedia.filter((item) => !pitchIds.has(item.id))];
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-4 pb-16 lg:px-6">
-      <BackToResults />
+    <>
+      <main className="mx-auto max-w-5xl px-4 pt-4 pb-16 lg:px-6">
+        <TrackView kind="pitch" venueId={venue.id} pitchId={pitch.id} />
+        <BackToResults />
 
-      <header className="mt-2">
-        <h1 className="text-2xl font-semibold text-ink sm:text-3xl">{pitch.name}</h1>
-        <p className="mt-1 text-muted">
-          At{" "}
-          <Link
-            href={venuePath(venue.slug)}
-            className="font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            {venue.name}
-          </Link>
-          , {venue.suburb}, {venue.state}
-        </p>
-      </header>
+        <header className="mt-2">
+          <h1 className="text-2xl font-semibold text-ink sm:text-3xl">{pitch.name}</h1>
+          <p className="mt-1 text-muted">
+            At{" "}
+            <Link
+              href={venuePath(venue.slug)}
+              className="font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              {venue.name}
+            </Link>
+            , {venue.suburb}, {venue.state}
+          </p>
+        </header>
 
-      <div className="mt-6">
-        <Gallery media={photos} label={`${pitch.name} at ${venue.name}`} />
-      </div>
-
-      <div className="mt-8 grid gap-10 lg:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col gap-10">
-          <section aria-labelledby="specs">
-            <h2 id="specs" className="text-lg font-semibold text-ink">
-              Pitch details
-            </h2>
-            <dl className="mt-3 grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-              {pitchSpecs(pitch).map((row) => (
-                <div key={row.label} className="contents">
-                  <dt className="text-muted">{row.label}</dt>
-                  <dd className={row.value === "Not confirmed" ? "text-muted" : "font-medium text-ink"}>
-                    {row.value}
-                    {row.note === undefined ? null : <span className="font-normal text-muted"> ({row.note})</span>}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-
-          <section aria-labelledby="facilities">
-            <h2 id="facilities" className="text-lg font-semibold text-ink">
-              Facilities at {venue.name}
-            </h2>
-            <p className="mt-1 text-sm text-muted">Shared by every pitch at the venue.</p>
-            <div className="mt-3 max-w-sm">
-              <FacilityList amenities={venue.amenities} />
-            </div>
-          </section>
+        <div className="mt-6">
+          <Gallery media={photos} label={`${pitch.name} at ${venue.name}`} />
         </div>
 
-        <aside aria-labelledby="location">
-          <h2 id="location" className="text-lg font-semibold text-ink">
-            Location
-          </h2>
-          <VenueLocation venue={venue} />
-          {venue.publishedPitchCount > 1 ? (
-            <p className="mt-6 text-sm text-muted">
-              {venue.name} has {venue.publishedPitchCount} pitches.{" "}
-              <Link
-                href={venuePath(venue.slug)}
-                className="font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-              >
-                See all pitches
-              </Link>
-            </p>
-          ) : null}
-        </aside>
-      </div>
-    </main>
+        <div className="mt-8 grid gap-10 lg:grid-cols-[2fr_1fr]">
+          <div className="flex flex-col gap-10">
+            <section aria-labelledby="specs">
+              <h2 id="specs" className="text-lg font-semibold text-ink">
+                Pitch details
+              </h2>
+              <dl className="mt-3 grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
+                {pitchSpecs(pitch).map((row) => (
+                  <div key={row.label} className="contents">
+                    <dt className="text-muted">{row.label}</dt>
+                    <dd className={row.value === "Not confirmed" ? "text-muted" : "font-medium text-ink"}>
+                      {row.value}
+                      {row.note === undefined ? null : <span className="font-normal text-muted"> ({row.note})</span>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            <section aria-labelledby="facilities">
+              <h2 id="facilities" className="text-lg font-semibold text-ink">
+                Facilities at {venue.name}
+              </h2>
+              <p className="mt-1 text-sm text-muted">Shared by every pitch at the venue.</p>
+              <div className="mt-3 max-w-sm">
+                <FacilityList amenities={venue.amenities} />
+              </div>
+            </section>
+          </div>
+
+          <aside aria-labelledby="location">
+            <h2 id="location" className="text-lg font-semibold text-ink">
+              Location
+            </h2>
+            <VenueLocation venue={venue} pitchId={pitch.id} />
+            {venue.publishedPitchCount > 1 ? (
+              <p className="mt-6 text-sm text-muted">
+                {venue.name} has {venue.publishedPitchCount} pitches.{" "}
+                <Link
+                  href={venuePath(venue.slug)}
+                  className="font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                >
+                  See all pitches
+                </Link>
+              </p>
+            ) : null}
+          </aside>
+        </div>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

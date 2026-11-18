@@ -169,14 +169,14 @@ describe("SearchLayout on a phone", () => {
 
   it("fits the map clear of the sheet even when the results arrive before the sheet is measured", async () => {
     // A slow device: the first measurement comes only after the venues have loaded.
-    let measure: (() => void) | null = null;
+    let measure: ((height: number) => void) | null = null;
     vi.stubGlobal(
       "ResizeObserver",
       class {
         constructor(private readonly callback: ResizeObserverCallback) {}
         observe() {
-          measure = () => {
-            this.callback([{ contentRect: { height: 716 } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+          measure = (height) => {
+            this.callback([{ contentRect: { height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
           };
         }
         disconnect() {}
@@ -190,17 +190,23 @@ describe("SearchLayout on a phone", () => {
     expect(markerLayer()).toBe("calc(10% + 0px)");
 
     act(() => {
-      measure?.();
+      measure?.(716);
     });
     // Split view is 358 px of the 716: the view is fitted again, above it, on the same map.
     expect(markerLayer()).toBe("calc(10% + 358px)");
     expect(map.dataset.viewKey).not.toBe(fitted);
     expect(screen.getByTestId("fake-map")).toBe(map);
 
-    // Dragging the sheet afterwards never refits (the markers stay put under the finger).
+    // The area shrinking (the consent banner appearing, a rotation) fits it again, for the new size.
+    act(() => {
+      measure?.(600);
+    });
+    expect(markerLayer()).toBe("calc(10% + 300px)");
+
+    // Changing the sheet's size never refits (the markers stay put under the finger).
     const key = map.dataset.viewKey;
     await userEvent.setup().click(sizeButton("List"));
     expect(map.dataset.viewKey).toBe(key);
-    expect(markerLayer()).toBe("calc(10% + 358px)");
+    expect(markerLayer()).toBe("calc(10% + 300px)");
   });
 });

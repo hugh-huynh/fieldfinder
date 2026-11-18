@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 
+import { LegalLinks } from "@/components/SiteFooter";
 import { SearchMap } from "@/features/map/components/SearchMap";
 import { ResultsPanel, ResultsSkeleton } from "@/features/search/components/ResultsPanel";
 import { SearchResultsProvider } from "@/features/search/components/SearchResultsContext";
@@ -37,6 +38,7 @@ function ListColumn({
         <p className="mt-2 text-muted">Search a suburb or place to see public soccer fields nearby.</p>
         {/* Fills in the place by itself only when location access is already allowed. */}
         {locate ? <UseMyLocation autoFill /> : null}
+        <LegalLinks className="mt-10" />
       </div>
     );
   }
@@ -48,6 +50,7 @@ function ListColumn({
       </h1>
       {locate ? <UseMyLocation compact /> : null}
       {results}
+      <LegalLinks className="mt-10 pb-4" />
     </div>
   );
 }

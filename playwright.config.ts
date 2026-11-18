@@ -6,6 +6,10 @@ const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 const isCI = Boolean(process.env.CI);
 
+/** A fake GA4 measurement id (PR 4.1): the consent banner and analytics code run, but gtag.js is
+ * never fetched (tests/e2e/analytics.spec.ts stands in for it, and nothing reaches Google). */
+export const E2E_GA_MEASUREMENT_ID = "G-E2ETEST000";
+
 // Viewports agreed in the plan (P7): desktop 1440x900, mobile 390x844.
 const mobileViewport = { width: 390, height: 844 };
 
@@ -28,6 +32,12 @@ export default defineConfig({
     screenshot: "only-on-failure",
     locale: "en-AU",
     timezoneId: "Australia/Melbourne",
+    // Every spec starts with analytics already declined, so the consent banner (PR 4.1) doesn't shift
+    // their layouts; analytics.spec.ts starts with no choice made.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: "ff.analytics-consent", value: "denied" }] }],
+    },
   },
   projects: [
     {
@@ -58,6 +68,7 @@ export default defineConfig({
         // fail, and only the E2E_DB=1 specs need them.
         env: {
           NEXT_PUBLIC_MAP_ADAPTER: "fake",
+          NEXT_PUBLIC_GA_MEASUREMENT_ID: E2E_GA_MEASUREMENT_ID,
           DATABASE_URL_PUBLIC_READER: LOCAL_READER_URL,
           MEDIA_PUBLIC_BASE_URL: LOCAL_MEDIA_PUBLIC_BASE_URL,
           // Signs search page bookmarks for GET /api/venues: the test-only value, valid nowhere else.

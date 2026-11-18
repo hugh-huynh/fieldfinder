@@ -2,6 +2,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
+import { resetConsentForTests } from "@/features/analytics/consent";
+import { resetAnalyticsForTests } from "@/features/analytics/gtag";
 import { flushSavedView } from "@/features/search/history-state";
 
 // jsdom has no showModal()/close() on <dialog> (PR 3.7). This stand-in only toggles `open` and fires
@@ -23,4 +25,11 @@ afterEach(() => {
   // then start the next test on a clean history entry, so no saved view leaks between tests.
   flushSavedView();
   window.history.replaceState(null, "", "/");
+  // Analytics (PR 4.1): no consent, nothing running, an empty data layer and no gtag script.
+  resetAnalyticsForTests();
+  resetConsentForTests();
+  window.localStorage.clear();
+  delete window.dataLayer;
+  delete window.gtag;
+  for (const script of document.querySelectorAll("script[data-ff-gtag]")) script.remove();
 });
