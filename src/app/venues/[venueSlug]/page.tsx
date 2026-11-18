@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SiteFooter } from "@/components/SiteFooter";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
@@ -9,6 +10,7 @@ import { FacilityList } from "@/features/venues/components/FacilityList";
 import { Gallery } from "@/features/venues/components/Gallery";
 import { PitchCard } from "@/features/venues/components/PitchCard";
 import { VenueLocation } from "@/features/venues/components/VenueLocation";
+import { TrackView } from "@/features/analytics/components/TrackView";
 import { getVenueDetail } from "@/features/venues/detail";
 import { slugSchema } from "@/features/venues/slug";
 import { publicDb } from "@/lib/db/public";
@@ -51,77 +53,81 @@ export default async function VenuePage({ params }: { params: Params }) {
   const { venue, pitches, media } = detail;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pt-4 pb-16 lg:px-6">
-      <BackToResults />
+    <>
+      <main className="mx-auto max-w-5xl px-4 pt-4 pb-16 lg:px-6">
+        <TrackView kind="venue" venueId={venue.id} />
+        <BackToResults />
 
-      <header className="mt-2">
-        <h1 className="text-2xl font-semibold text-ink sm:text-3xl">{venue.name}</h1>
-        <p className="mt-1 text-muted">
-          {venue.suburb}, {venue.state}
-        </p>
-        <ul aria-label="At a glance" className="mt-3 flex flex-wrap gap-1.5">
-          <li>
-            <Pill tone="brand">
-              {venue.publishedPitchCount} {venue.publishedPitchCount === 1 ? "pitch" : "pitches"}
-            </Pill>
-          </li>
-          {venue.access === null ? null : (
+        <header className="mt-2">
+          <h1 className="text-2xl font-semibold text-ink sm:text-3xl">{venue.name}</h1>
+          <p className="mt-1 text-muted">
+            {venue.suburb}, {venue.state}
+          </p>
+          <ul aria-label="At a glance" className="mt-3 flex flex-wrap gap-1.5">
             <li>
-              <Pill>{ACCESS_LABELS[venue.access]}</Pill>
+              <Pill tone="brand">
+                {venue.publishedPitchCount} {venue.publishedPitchCount === 1 ? "pitch" : "pitches"}
+              </Pill>
             </li>
-          )}
-        </ul>
-      </header>
+            {venue.access === null ? null : (
+              <li>
+                <Pill>{ACCESS_LABELS[venue.access]}</Pill>
+              </li>
+            )}
+          </ul>
+        </header>
 
-      <div className="mt-6">
-        <Gallery media={media} label={venue.name} />
-      </div>
-
-      <div className="mt-8 grid gap-10 lg:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col gap-10">
-          {venue.description === null ? null : (
-            <section aria-labelledby="about">
-              <h2 id="about" className="text-lg font-semibold text-ink">
-                About
-              </h2>
-              <p className="mt-2 whitespace-pre-line text-ink">{venue.description}</p>
-            </section>
-          )}
-
-          <section aria-labelledby="pitches">
-            <h2 id="pitches" className="text-lg font-semibold text-ink">
-              Pitches
-            </h2>
-            <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-              {pitches.map((pitch) => (
-                <li key={pitch.id}>
-                  <PitchCard pitch={pitch} />
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section aria-labelledby="facilities">
-            <h2 id="facilities" className="text-lg font-semibold text-ink">
-              Facilities
-            </h2>
-            <div className="mt-3 max-w-sm">
-              <FacilityList amenities={venue.amenities} />
-            </div>
-          </section>
+        <div className="mt-6">
+          <Gallery media={media} label={venue.name} />
         </div>
 
-        <aside aria-labelledby="location" className="lg:pt-0">
-          <h2 id="location" className="text-lg font-semibold text-ink">
-            Location
-          </h2>
-          <VenueLocation venue={venue} />
+        <div className="mt-8 grid gap-10 lg:grid-cols-[2fr_1fr]">
+          <div className="flex flex-col gap-10">
+            {venue.description === null ? null : (
+              <section aria-labelledby="about">
+                <h2 id="about" className="text-lg font-semibold text-ink">
+                  About
+                </h2>
+                <p className="mt-2 whitespace-pre-line text-ink">{venue.description}</p>
+              </section>
+            )}
 
-          <h2 className="mt-8 text-lg font-semibold text-ink">Access</h2>
-          <p className="mt-2 text-ink">{venue.access === null ? "Not confirmed" : ACCESS_LABELS[venue.access]}</p>
-          <p className="mt-1 text-sm text-muted">Pitches may have their own rules; see each pitch.</p>
-        </aside>
-      </div>
-    </main>
+            <section aria-labelledby="pitches">
+              <h2 id="pitches" className="text-lg font-semibold text-ink">
+                Pitches
+              </h2>
+              <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+                {pitches.map((pitch) => (
+                  <li key={pitch.id}>
+                    <PitchCard pitch={pitch} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section aria-labelledby="facilities">
+              <h2 id="facilities" className="text-lg font-semibold text-ink">
+                Facilities
+              </h2>
+              <div className="mt-3 max-w-sm">
+                <FacilityList amenities={venue.amenities} />
+              </div>
+            </section>
+          </div>
+
+          <aside aria-labelledby="location" className="lg:pt-0">
+            <h2 id="location" className="text-lg font-semibold text-ink">
+              Location
+            </h2>
+            <VenueLocation venue={venue} />
+
+            <h2 className="mt-8 text-lg font-semibold text-ink">Access</h2>
+            <p className="mt-2 text-ink">{venue.access === null ? "Not confirmed" : ACCESS_LABELS[venue.access]}</p>
+            <p className="mt-1 text-sm text-muted">Pitches may have their own rules; see each pitch.</p>
+          </aside>
+        </div>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

@@ -77,11 +77,13 @@ jobs:
       # Postgres (migrated and seeded on a fresh runner) plus Storage and its gateway for the photos;
       # the rest of the stack is skipped, as in the database job (ci.yml).
       - run: pnpm db:start -x gotrue,realtime,imgproxy,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
-      # The fake map is baked in at build time (NEXT_PUBLIC_*); the server's database and media URLs
-      # are the local ones, set by playwright.config.ts when it starts the app.
+      # The fake map and a fake GA4 id (PR 4.1: the consent banner and analytics code run, nothing is
+      # sent to Google) are baked in at build time (NEXT_PUBLIC_*); the server's database and media
+      # URLs are the local ones, set by playwright.config.ts when it starts the app.
       - run: pnpm build
         env:
           NEXT_PUBLIC_MAP_ADAPTER: fake
+          NEXT_PUBLIC_GA_MEASUREMENT_ID: G-E2ETEST000
       - run: pnpm e2e
         env:
           E2E_DB: "1"

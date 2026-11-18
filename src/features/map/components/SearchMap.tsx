@@ -7,6 +7,7 @@ import { Component, useMemo, useRef, useState, type ReactNode } from "react";
 import { saveSearchView, type SavedSearchView } from "@/features/search/history-state";
 import { MAX_RADIUS_KM, MIN_RADIUS_KM } from "@/features/search/query";
 import { useSearchResults } from "@/features/search/components/SearchResultsContext";
+import { track } from "@/features/analytics/gtag";
 import { MapPlaceholder, useSheet } from "@/features/search/components/SearchLayout";
 import { placeLocation, serializeSearchState } from "@/features/search/state";
 
@@ -68,9 +69,11 @@ export function SearchMap() {
   const restored = saved !== null && recentred.on !== saved ? (saved.bounds ?? null) : null;
   const bounds = restored ?? searched;
   // A new view for each search (first the radius while loading, then its venues) and each Recentre.
-  // Also once the phone's sheet is first measured: a view fitted before then (results can arrive
-  // first on a slow device) would lay markers out under the sheet. Dragging the sheet never refits.
-  const layout = sheet.mobile && sheet.sheetPx === null ? "unmeasured" : "measured";
+  // On a phone, also whenever the area under the sheet is (re)measured: first measured (results can
+  // arrive before that on a slow device), or resized by the consent banner coming or going, or by a
+  // rotation. A view fitted for the old size would lay markers out under the sheet. Dragging the
+  // sheet changes neither, so it never refits.
+  const layout = !sheet.mobile ? "side" : sheet.sheetPx === null ? "unmeasured" : `sheet:${String(sheet.containerPx)}`;
   const viewKey = `${search ?? "none"}|${results.status}|${String(recentred.count)}|${layout}`;
 
   const chosen = items?.find((item) => item.id === selectedId) ?? null;
@@ -100,7 +103,11 @@ export function SearchMap() {
     viewKey,
     highlightedId,
     selectedId,
-    onMarkerClick: toggleSelected,
+    onMarkerClick: (id) => {
+      // Choosing a marker (the first of the two steps), not closing its preview (spec §7, PR 4.1).
+      if (selectedId !== id) track({ name: "select_map_marker", params: { venue_id: id, source: "map" } });
+      toggleSelected(id);
+    },
     onRecentre: () => {
       setRecentred(({ count }) => ({ count: count + 1, on: saved }));
     },

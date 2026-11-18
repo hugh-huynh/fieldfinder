@@ -9,6 +9,18 @@
 //
 // Map (PR 3.4): mapbox-gl fetches styles, tiles and fonts from api.mapbox.com and *.tiles.mapbox.com,
 // reports map loads (its billing) to events.mapbox.com, and runs its worker from a blob: URL.
+//
+// Analytics (PR 4.1): after consent, gtag.js loads from www.googletagmanager.com and sends hits to
+// GA4's collection hosts (Google's documented CSP for GA4: fetch/beacon, with an image fallback).
+// Loaded as a script element by our own code, so no inline script needs allowing for it.
+
+const GA_SCRIPT = "https://www.googletagmanager.com";
+const GA_CONNECT = [
+  "https://*.google-analytics.com",
+  "https://*.analytics.google.com",
+  "https://www.googletagmanager.com",
+].join(" ");
+const GA_IMG = "https://*.google-analytics.com https://www.googletagmanager.com";
 
 /** The http(s) origin of `value`, or null if it isn't a usable URL. */
 export function mediaOrigin(value: string | undefined): string | null {
@@ -20,11 +32,11 @@ export function mediaOrigin(value: string | undefined): string | null {
 function contentSecurityPolicy(media: string | null): string {
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'unsafe-inline' ${GA_SCRIPT}`,
     "style-src 'self' 'unsafe-inline'",
-    ["img-src 'self' data: blob:", media].filter(Boolean).join(" "),
+    ["img-src 'self' data: blob:", media, GA_IMG].filter(Boolean).join(" "),
     "font-src 'self'",
-    "connect-src 'self' https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com",
+    `connect-src 'self' https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com ${GA_CONNECT}`,
     "worker-src 'self' blob:",
     "child-src blob:",
     "object-src 'none'",

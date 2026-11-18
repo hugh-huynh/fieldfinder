@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSecurityHeaders, mediaOrigin, securityHeaders } from "./headers";
 
+const GA_IMG = "https://*.google-analytics.com https://www.googletagmanager.com";
 const header = (key: string) => securityHeaders.find((h) => h.key === key)?.value;
 
 describe("securityHeaders", () => {
@@ -31,14 +32,14 @@ describe("securityHeaders", () => {
 
     it("allows the media bucket's origin only, not its path", () => {
       expect(imgSrc({ MEDIA_PUBLIC_BASE_URL: "https://abc.supabase.co/storage/v1/object/public/media-public/" })).toBe(
-        "img-src 'self' data: blob: https://abc.supabase.co",
+        `img-src 'self' data: blob: https://abc.supabase.co ${GA_IMG}`,
       );
     });
 
     it.each([undefined, "", "   ", "not a url", "javascript:alert(1)", "ftp://files.example", "https://"])(
       "adds nothing for %j",
       (value) => {
-        expect(imgSrc({ MEDIA_PUBLIC_BASE_URL: value })).toBe("img-src 'self' data: blob:");
+        expect(imgSrc({ MEDIA_PUBLIC_BASE_URL: value })).toBe(`img-src 'self' data: blob: ${GA_IMG}`);
       },
     );
 
@@ -52,9 +53,20 @@ describe("securityHeaders", () => {
   it("lets the map reach Mapbox and nothing else new (PR 3.4)", () => {
     const csp = header("Content-Security-Policy-Report-Only") ?? "";
     expect(csp).toContain(
-      "connect-src 'self' https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com",
+      "connect-src 'self' https://api.mapbox.com https://*.tiles.mapbox.com https://events.mapbox.com ",
     );
     expect(csp).toContain("worker-src 'self' blob:");
     expect(csp).not.toMatch(/script-src[^;]*mapbox/);
+  });
+
+  it("lets gtag.js load from Google Tag Manager and send to GA4's hosts only (PR 4.1)", () => {
+    const csp = header("Content-Security-Policy-Report-Only") ?? "";
+    expect(csp).toContain("script-src 'self' 'unsafe-inline' https://www.googletagmanager.com;");
+    expect(csp).toMatch(
+      /connect-src [^;]* https:\/\/\*\.google-analytics\.com https:\/\/\*\.analytics\.google\.com https:\/\/www\.googletagmanager\.com(;|$)/,
+    );
+    // No wildcard Google domains, and nothing for scripts beyond the one loader host.
+    expect(csp).not.toMatch(/\*\.google\.com|\*\.googleapis\.com/);
+    expect(csp).not.toMatch(/script-src[^;]*google-analytics/);
   });
 });

@@ -42,9 +42,11 @@ interface SheetState {
   mobile: boolean;
   /** The sheet's height in px on mobile (null on desktop, or before it's measured). */
   sheetPx: number | null;
+  /** The height the sheet and map share on mobile (null on desktop, or before it's measured). */
+  containerPx: number | null;
 }
 
-const SheetContext = createContext<SheetState>({ mobile: false, sheetPx: null });
+const SheetContext = createContext<SheetState>({ mobile: false, sheetPx: null, containerPx: null });
 
 export function useSheet(): SheetState {
   return useContext(SheetContext);
@@ -158,11 +160,11 @@ export function SearchLayout({ list, map }: { list: ReactNode; map: ReactNode })
   }
 
   return (
-    <SheetContext value={{ mobile, sheetPx }}>
+    <SheetContext value={{ mobile, sheetPx, containerPx: mobile ? containerPx : null }}>
       <div
         ref={root}
         style={style}
-        className="relative h-[calc(100dvh-var(--header-h))] overflow-hidden lg:grid lg:grid-cols-[55fr_45fr]"
+        className="relative h-[calc(100dvh-var(--header-h)-var(--consent-h,0px))] overflow-hidden lg:grid lg:grid-cols-[55fr_45fr]"
       >
         <section
           aria-label="Results"

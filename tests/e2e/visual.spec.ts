@@ -113,4 +113,20 @@ test.describe("visual baselines", () => {
     await settle(page);
     await screenshot(page, "not-found.png");
   });
+
+  test("privacy", async ({ page }) => {
+    await page.goto("/privacy");
+    await settle(page);
+    await screenshot(page, "privacy.png");
+  });
+});
+
+test.describe("visual baselines: before an analytics choice (PR 4.1)", () => {
+  test.use({ reducedMotion: "reduce", storageState: { cookies: [], origins: [] } });
+
+  test("consent banner over results", async ({ page }) => {
+    await results(page);
+    await page.getByRole("region", { name: "Help us improve FieldFinder?" }).waitFor();
+    await screenshot(page, "consent-banner.png");
+  });
 });

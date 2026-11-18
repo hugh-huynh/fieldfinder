@@ -9,7 +9,8 @@ export function venueAddress(venue: Pick<VenueDetailDto, "streetAddress" | "subu
   return venue.streetAddress === null ? locality : `${venue.streetAddress}, ${locality}`;
 }
 
-export function VenueLocation({ venue }: { venue: VenueDetailDto }) {
+/** `pitchId`: on a pitch's page, so click_directions (PR 4.1) says which pitch it was asked from. */
+export function VenueLocation({ venue, pitchId }: { venue: VenueDetailDto; pitchId?: string }) {
   return (
     <>
       <address className="mt-2 text-ink not-italic">{venueAddress(venue)}</address>
@@ -17,6 +18,9 @@ export function VenueLocation({ venue }: { venue: VenueDetailDto }) {
         href={directionsUrl(venue.location.latitude, venue.location.longitude)}
         target="_blank"
         rel="noopener noreferrer"
+        data-analytics-event="click_directions"
+        data-venue-id={venue.id}
+        data-pitch-id={pitchId}
         className="mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-pill bg-primary px-6 font-semibold text-surface hover:bg-primary-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
         Get directions

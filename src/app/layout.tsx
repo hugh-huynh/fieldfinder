@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 
+import { Analytics } from "@/features/analytics/components/Analytics";
 import { AppHeader } from "@/features/search/components/AppHeader";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
@@ -15,6 +17,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-AU" className={inter.variable}>
       <body className="font-sans antialiased">
+        {/* Before the page: the consent banner sits above the header, and each navigation's page view
+            is sent before the page's own analytics events (PR 4.1). Reads the URL, so it suspends. */}
+        <Suspense fallback={null}>
+          <Analytics />
+        </Suspense>
         <AppHeader />
         {children}
       </body>

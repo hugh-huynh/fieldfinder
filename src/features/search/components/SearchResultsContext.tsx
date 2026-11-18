@@ -1,14 +1,16 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { filterParams, searchType } from "@/features/analytics/events";
+import { track } from "@/features/analytics/gtag";
 import { distanceKm } from "@/features/map/view";
 
 import { isNearFix, useDeviceFix } from "../device-fix";
 import { flushSavedView, readSavedView, saveSearchView, type SavedSearchView } from "../history-state";
 import { rememberSearch } from "../last-search";
-import { DEFAULT_LIMIT, MAX_LIMIT } from "../query";
+import { DEFAULT_LIMIT, DEFAULT_RADIUS_KM, MAX_LIMIT } from "../query";
 import { apiQueryString, parseSearchState, type SearchState } from "../state";
 
 import type { VenueSearchResultDto } from "../search";
@@ -116,6 +118,31 @@ export function SearchResultsProvider({ children }: { children: ReactNode }) {
 
   const device = useDeviceFix();
   const nearMe = isNearFix(state.location, device) ? device : null;
+
+  // Analytics (spec §7, PR 4.1), once results arrive: one search event per place searched (changing
+  // filters on it is filter_fields, sent by the dialog), and no_search_results for each search that
+  // finds nothing. Only the kind of search, its radius, which filters and the count: never the place.
+  const tracked = useRef<{ place: string | null; search: string | null }>({ place: null, search: null });
+  const totalCount = results.status === "ready" ? results.totalCount : null;
+  const near = nearMe !== null;
+  useEffect(() => {
+    const location = state.location;
+    if (search === null || location === null || totalCount === null) return;
+    const kind = searchType(location, near);
+    const filters = filterParams(state.filters, DEFAULT_RADIUS_KM);
+    // Memory only, to tell one place from the next.
+    const place = `${String(location.lat)},${String(location.lng)}`;
+    if (tracked.current.place !== place) {
+      tracked.current.place = place;
+      if (kind === "nearby") track({ name: "nearby_search", params: { result_count: totalCount, ...filters } });
+      else track({ name: "search_fields", params: { search_type: kind, result_count: totalCount, ...filters } });
+    }
+    // Every completed search is noted, so a later return to an empty one counts it again.
+    if (tracked.current.search !== search) {
+      tracked.current.search = search;
+      if (totalCount === 0) track({ name: "no_search_results", params: { search_type: kind, ...filters } });
+    }
+  }, [search, state, totalCount, near]);
 
   const value: SearchResults = {
     state,

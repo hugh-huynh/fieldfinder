@@ -78,6 +78,7 @@ export function MarkerPreview({
           <Link
             ref={link}
             href={venue.href}
+            data-analytics-source="map"
             className="rounded-sm group-focus-within:underline after:absolute after:inset-0 after:rounded-card after:content-[''] focus-visible:outline-none"
           >
             {venue.name}

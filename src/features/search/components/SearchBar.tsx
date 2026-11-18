@@ -2,8 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { filterParams } from "@/features/analytics/events";
+import { track } from "@/features/analytics/gtag";
 import { withoutCountry, type LocationSuggestionDto } from "@/features/locations/query";
 
+import { DEFAULT_RADIUS_KM } from "../query";
 import { parseSearchState, placeLocation, serializeSearchState, type SearchFilters } from "../state";
 
 import { FiltersControl } from "./FiltersDialog";
@@ -28,6 +31,8 @@ export function SearchBar() {
   }
 
   function onApplyFilters(filters: SearchFilters) {
+    // Which filters are on, not their place (spec §7, PR 4.1).
+    track({ name: "filter_fields", params: filterParams(filters, DEFAULT_RADIUS_KM) });
     router.push(`/?${serializeSearchState({ location: state.location, filters })}`);
   }
 

@@ -68,6 +68,7 @@ export function VenueCard({
         <Heading className="text-base leading-snug font-semibold text-ink">
           <Link
             href={venue.href}
+            data-analytics-source="list"
             className="rounded-sm group-focus-within:underline after:absolute after:inset-0 after:rounded-card after:content-[''] focus-visible:outline-none"
           >
             {venue.name}
