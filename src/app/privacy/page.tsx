@@ -2,15 +2,17 @@ import type { Metadata } from "next";
 
 import { AnalyticsChoice } from "@/features/analytics/components/AnalyticsChoice";
 import { LegalPage, Section } from "@/features/legal/components/LegalPage";
+import { pageMetadata } from "@/features/seo/metadata";
 
 // /privacy (PR 4.1): the privacy policy and collection notice (APP 1, APP 5), and the place to change
 // the analytics choice. Draft wording for review (plan P5). Every statement here describes what the
 // code does; keep them in step (ADR-0005 location privacy, src/features/analytics).
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy · FieldFinder",
   description: "What FieldFinder collects, why, and the choices you have.",
-};
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (

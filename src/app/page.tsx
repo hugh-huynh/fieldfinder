@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 
 import { LegalLinks } from "@/components/SiteFooter";
@@ -7,9 +8,18 @@ import { SearchResultsProvider } from "@/features/search/components/SearchResult
 import { UseMyLocation } from "@/features/search/components/UseMyLocation";
 import { MapPlaceholder, SearchLayout } from "@/features/search/components/SearchLayout";
 import { parseSearchState, type SearchLocation } from "@/features/search/state";
+import { pageMetadata, SITE_NAME } from "@/features/seo/metadata";
 
 // `/`: search results (spec §3). The heading follows the URL's place; the results list (3.3) and the
 // map (3.4) share one search, loaded on the client from GET /api/venues. The 3-snap sheet is 3.8.
+
+// Every search URL has the same canonical: the place, coordinates and filters in a query are one
+// visitor's search, not a page of their own (PR 4.2).
+export const metadata: Metadata = pageMetadata({
+  title: SITE_NAME,
+  description: "Find public soccer fields near you in Melbourne.",
+  path: "/",
+});
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

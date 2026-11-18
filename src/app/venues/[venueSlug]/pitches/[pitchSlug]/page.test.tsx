@@ -162,7 +162,33 @@ describe("PitchPage", () => {
     expect((await generateMetadata(params("test-reserve", "east-pitch"))).title).toBe(
       "East pitch at Test Reserve, Testville · FieldFinder",
     );
+    expect(await generateMetadata(params("test-reserve", "east-pitch"))).toMatchObject({
+      alternates: { canonical: "/venues/test-reserve/pitches/east-pitch" },
+      openGraph: { url: "/venues/test-reserve/pitches/east-pitch" },
+    });
     lookup.getPitchDetail.mockResolvedValue(null);
     expect(await generateMetadata(params("test-reserve", "draft-pitch"))).toEqual({ title: "Not found · FieldFinder" });
+  });
+
+  it("shares the pitch's own photo first, and describes the pitch as structured data", async () => {
+    lookup.getPitchDetail.mockResolvedValue({
+      ...detail(),
+      media: [photo("m-pitch", "The east pitch")],
+      venueMedia: [photo("m-venue", "The pavilion")],
+    });
+    const metadata = await generateMetadata(params("test-reserve", "east-pitch"));
+    expect(metadata.openGraph?.images).toEqual([
+      { url: "https://media.test/m-pitch.webp", width: 1600, height: 900, alt: "The east pitch" },
+    ]);
+
+    const { container } = render(await PitchPage(params("test-reserve", "east-pitch")));
+    const scripts = container.querySelectorAll('script[type="application/ld+json"]');
+    expect(scripts).toHaveLength(1);
+    expect(JSON.parse(scripts[0]?.textContent ?? "")).toMatchObject({
+      "@type": "SportsActivityLocation",
+      url: "http://localhost:3000/venues/test-reserve/pitches/east-pitch",
+      image: ["https://media.test/m-pitch.webp", "https://media.test/m-venue.webp"],
+      containedInPlace: { url: "http://localhost:3000/venues/test-reserve" },
+    });
   });
 });

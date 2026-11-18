@@ -11,9 +11,14 @@ import { Gallery } from "@/features/venues/components/Gallery";
 import { PitchCard } from "@/features/venues/components/PitchCard";
 import { VenueLocation } from "@/features/venues/components/VenueLocation";
 import { TrackView } from "@/features/analytics/components/TrackView";
+import { JsonLd } from "@/features/seo/components/JsonLd";
+import { venueJsonLd } from "@/features/seo/json-ld";
+import { NOT_FOUND_METADATA, pageMetadata } from "@/features/seo/metadata";
 import { getVenueDetail } from "@/features/venues/detail";
+import { pitchPath, venuePath } from "@/features/venues/route-target";
 import { slugSchema } from "@/features/venues/slug";
 import { publicDb } from "@/lib/db/public";
+import { siteUrl } from "@/lib/site";
 
 // `/venues/[venueSlug]` (spec §3 details, PR 3.10): a published venue with its photos, pitches,
 // facilities, location and a directions link. Server-rendered from the published-only views as
@@ -38,13 +43,15 @@ const load = cache(async (venueSlug: string) => {
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const detail = await load((await params).venueSlug);
-  if (detail === null) return { title: "Not found · FieldFinder" };
-  const { venue } = detail;
+  if (detail === null) return NOT_FOUND_METADATA;
+  const { venue, media } = detail;
   const pitches = `${String(venue.publishedPitchCount)} ${venue.publishedPitchCount === 1 ? "pitch" : "pitches"}`;
-  return {
+  return pageMetadata({
     title: `${venue.name}, ${venue.suburb} · FieldFinder`,
     description: `${venue.name} in ${venue.suburb} ${venue.state}: ${pitches}, facilities and directions.`,
-  };
+    path: venuePath(venue.slug),
+    images: media,
+  });
 }
 
 export default async function VenuePage({ params }: { params: Params }) {
@@ -56,6 +63,15 @@ export default async function VenuePage({ params }: { params: Params }) {
     <>
       <main className="mx-auto max-w-5xl px-4 pt-4 pb-16 lg:px-6">
         <TrackView kind="venue" venueId={venue.id} />
+        <JsonLd
+          data={venueJsonLd(
+            venue,
+            pitches,
+            media,
+            { venue: venuePath(venue.slug), pitch: (pitch) => pitchPath(venue.slug, pitch.slug) },
+            (path) => siteUrl(path),
+          )}
+        />
         <BackToResults />
 
         <header className="mt-2">

@@ -2,14 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { LegalPage, Section } from "@/features/legal/components/LegalPage";
+import { pageMetadata } from "@/features/seo/metadata";
 
 // /terms (PR 4.1): terms of use, including the data-reuse terms behind the scraping resistance
 // (spec §6) and the map and photo credits. Draft wording for review (plan P5).
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Terms of use · FieldFinder",
   description: "The terms for using FieldFinder and its information about soccer fields.",
-};
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (
