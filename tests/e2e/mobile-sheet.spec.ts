@@ -8,9 +8,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 test.skip(({ isMobile }) => !isMobile, "the sheet is the phone layout");
 
-// Snaps settle instantly with reduced motion, so each drag starts from a handle at rest. (The drag
-// that failed on CI was a real bug, fixed in SearchLayout: a release read the last move's state before
-// it had rendered.)
+// Snaps settle instantly with reduced motion, so each drag starts from a handle at rest. Two drags
+// that failed on CI were real bugs, fixed in SearchLayout: a release read the last move's state before
+// it had rendered; and a mouse drag selected the sheet's text, so the next press on the handle began a
+// native drag of that text in WebKit, which swallowed the rest of the gesture.
 test.use({ reducedMotion: "reduce" });
 
 const SEARCH = "/?lat=-37.814&lng=144.963&place=Melbourne";
@@ -105,6 +106,17 @@ test("dragging the handle reaches all three snaps, and the map is never replaced
 
   await expect(page.getByTestId("fake-map")).toHaveAttribute("data-e2e-original", "yes");
   await expect(page.getByRole("status").filter({ hasText: "Showing the map and the list" })).toHaveCount(1);
+});
+
+test("a drag selects no text, and still works when text is already selected", async ({ page }) => {
+  await dragHandle(page, -260);
+  await expect(splitter(page)).toHaveAttribute("aria-valuetext", "List view");
+  expect(await page.evaluate(() => String(getSelection()))).toBe("");
+
+  // Text selected some other way, under the handle: pressing it is still a drag, not a drag of the text.
+  await sheet(page).evaluate((el) => getSelection()?.selectAllChildren(el));
+  await dragHandle(page, 480);
+  await expect(splitter(page)).toHaveAttribute("aria-valuetext", "Map view");
 });
 
 test("the buttons and the keyboard reach all three snaps", async ({ page }) => {
