@@ -15,10 +15,10 @@ Edge counters are per region, so a client spread across regions can go over a li
 
 ## Managed rulesets
 
-| Ruleset        | Setting at launch | Then                                                                                                                            |
-| -------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Bot Protection | `log`             | `challenge` after a week of clean logs. Real browsers pass; verified search crawlers are excluded by Vercel.                    |
-| AI Bots        | `deny`            | Matches the terms of use (no bulk copying except search engines following robots rules). Change it here if that policy changes. |
+| Ruleset        | Setting at launch | Then                                                                                                                                                                            |
+| -------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bot Protection | `log`             | `challenge` after a week of clean logs (`rules update bot-protection --action challenge`, then `publish`). Real browsers pass; verified search crawlers are excluded by Vercel. |
+| AI Bots        | `deny`            | Matches the terms of use (no bulk copying except search engines following robots rules). Change it here if that policy changes.                                                 |
 
 Vercel verifies "verified bots" (Googlebot, Bingbot, …) itself, by IP range, reverse DNS or signed requests, and Bot Protection never challenges them. Bot Protection doesn't work behind another proxy, so Cloudflare stays **DNS-only** (ADR-0004).
 
@@ -39,13 +39,13 @@ Rules 5 and 6 are the crawled pages. Googlebot treats a 429 as "slow down" and b
 
 ## Apply with the Vercel CLI
 
-Run these from the linked project (`vercel link`), signed in as an owner of the team. `rules add` stages a draft. Nothing changes until `publish`.
+Run these from the linked project (`vercel link`), signed in as an owner of the team. `rules add` and `rules update` stage drafts: custom rules and managed bot rules alike. Nothing changes until `publish`.
 
-The two managed-ruleset lines follow the CLI reference's values (`bot-protection`: off, log or challenge; `ai-bots`: allow, log, challenge or deny). Their exact argument form wasn't confirmed, so check `vercel firewall bot-management --help` first. The dashboard toggles do the same.
+The managed bot rules are changed with `rules update`, using their IDs from the CLI reference. `bot-protection` takes `off`, `log` or `challenge`; `ai-bots` takes `allow`, `log`, `challenge` or `deny`. `vercel firewall bot-management` only lists them. The dashboard toggles (Project → Firewall → Bot Management) do the same.
 
 ```sh
-vercel firewall bot-management bot-protection log
-vercel firewall bot-management ai-bots deny
+vercel firewall rules update bot-protection --action log --yes
+vercel firewall rules update ai-bots --action deny --yes
 
 vercel firewall rules add "api-search" \
   --description "Search: 60 per minute per IP (docs/security/edge-rules.md)" \
@@ -78,7 +78,7 @@ vercel firewall rules add "sitemap" \
   --action rate_limit --rate-limit-window 60 --rate-limit-requests 10 --rate-limit-keys ip --rate-limit-action rate_limit --yes
 
 vercel firewall diff        # review the staged changes
-vercel firewall publish     # make them live
+vercel firewall publish     # make them live (asks you to confirm the project name)
 ```
 
 The same rules can be entered in the dashboard (Project → Firewall → Configure). Rate-limit rules need a plan that includes them (ADR-0004 assumes Pro). If the plan allows fewer rules, apply them in the order above.
@@ -97,7 +97,7 @@ Once the rules are live, record exactly what was applied:
 
 ```sh
 vercel firewall rules list --json --expand > docs/security/edge-rules.export.json
-vercel firewall bot-management --json > docs/security/edge-rules.bot-management.json
+vercel firewall bot-management --json > docs/security/edge-rules.bot-management.json   # managed bot rules' current actions
 ```
 
 Read both files before committing. They should hold rule names, conditions and actions only, with no tokens or secrets. Commit them next to this file. Re-export after every change, so the repo always shows what's live.
