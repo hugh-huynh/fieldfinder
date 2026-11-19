@@ -41,7 +41,7 @@ Rules 5 and 6 are the crawled pages. Googlebot treats a 429 as "slow down" and b
 
 Run these from the linked project (`vercel link`), signed in as an owner of the team. `rules add` and `rules update` stage drafts: custom rules and managed bot rules alike. Nothing changes until `publish`.
 
-The managed bot rules are changed with `rules update`, using their IDs from the CLI reference. `bot-protection` takes `off`, `log` or `challenge`; `ai-bots` takes `allow`, `log`, `challenge` or `deny`. `vercel firewall bot-management` only lists them. The dashboard toggles (Project → Firewall → Bot Management) do the same.
+The managed bot rules are changed with `rules update`, using their IDs (`bot-protection`, `ai-bots`). Hugh confirmed this against the Vercel CLI on 2026-11-20. `bot-protection` takes `off`, `log` or `challenge`; `ai-bots` takes `allow`, `log`, `challenge` or `deny`. `vercel firewall bot-management` only lists them. The dashboard toggles (Project → Firewall → Bot Management) do the same.
 
 ```sh
 vercel firewall rules update bot-protection --action log --yes
