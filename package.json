@@ -72,7 +72,7 @@
     "supabase": "2.122.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.72.0",
+    "typescript-eslint": "8.73.0",
     "vitest": "5.0.5"
   }
 }
