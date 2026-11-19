@@ -730,7 +730,8 @@ export function buildOpenApiDocument() {
       method: "post",
       path: "/api/admin/media",
       summary: "Upload an image for a venue or pitch",
-      description: "Stored privately as a draft. Publishing needs complete rights (ADR-0006).",
+      description:
+        "Stored privately as a draft. Publishing needs complete rights (ADR-0006). Limited to 30 uploads per 10 minutes per credential, on top of the general admin limit; a refused upload counts too.",
       request: {
         headers: createHeaders,
         body: { required: true, content: { "multipart/form-data": { schema: uploadForm } } },

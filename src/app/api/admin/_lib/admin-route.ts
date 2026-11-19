@@ -2,12 +2,13 @@ import "server-only";
 
 import { apiRoute, type ApiContext } from "@/lib/api/handler";
 import { adminScope, type AdminOperation } from "@/lib/api/operations";
-import { authenticateAdmin, type AdminPrincipal } from "@/lib/auth/admin";
+import { authenticateAdmin, rateLimited, type AdminPrincipal } from "@/lib/auth/admin";
 import { createPostgresCredentialStore } from "@/lib/auth/credential-store";
 import { adminDb } from "@/lib/db/admin";
 import type { Sql } from "@/lib/db/types";
 import { clientIp } from "@/lib/rate-limit/client-ip";
 import { createPostgresRateLimiter } from "@/lib/rate-limit/postgres";
+import { ADMIN_OPERATION_RULES } from "@/lib/rate-limit/rules";
 
 // Wrapper for every /api/admin route (ADR-0003, PR 2.9). It authenticates the bearer credential,
 // applies the admin rate limits and the scope check, then hands the handler the principal and the
@@ -26,6 +27,9 @@ import { createPostgresRateLimiter } from "@/lib/rate-limit/postgres";
 //  ├─ 4. This credential made 120+
 //  │     requests this minute?        → 429 + Retry-After
 //  ├─ 5. Lacks the required scope?    → 403
+//  ├─ 6. Over this operation's own
+//  │     limit (rules.ts, e.g. 30
+//  │     uploads per 10 min)?         → 429 + Retry-After (before the body is read)
 //  └─ ✓ Handler runs with the credential and the writer database connection; response marked no-store
 
 export interface AdminContext<Params> extends ApiContext<Params> {
@@ -40,11 +44,17 @@ export function adminRoute<Params = Record<string, never>>(
   const scope = adminScope(operation); // src/lib/api/operations.ts, also what the contract documents
   return apiRoute<Params>(operation, async (request, context) => {
     const sql = adminDb();
+    const limiter = createPostgresRateLimiter(sql);
     const admin = await authenticateAdmin(request, scope, {
       store: createPostgresCredentialStore(sql),
-      limiter: createPostgresRateLimiter(sql),
+      limiter,
       clientIp: clientIp(request),
     });
+    const rule = ADMIN_OPERATION_RULES[operation];
+    if (rule !== undefined) {
+      const usage = await limiter.hit(rule, admin.credentialId);
+      if (!usage.allowed) throw rateLimited(usage.resetAt, new Date());
+    }
     const original = await handler(request, { ...context, admin, sql });
     const response = new Response(original.body, original);
     response.headers.set("cache-control", "no-store");

@@ -29,6 +29,7 @@
     "db:reset": "supabase db reset --local",
     "seed:generate": "node scripts/generate-seed.ts",
     "admin:credential": "node scripts/admin-credential.ts",
+    "crawler:verify": "node scripts/verify-crawler.ts",
     "media:upload-fixtures": "node scripts/upload-fixture-images.ts",
     "media:smoke": "node scripts/staging-media-smoke.ts",
     "security:smoke": "node scripts/security-smoke.ts",

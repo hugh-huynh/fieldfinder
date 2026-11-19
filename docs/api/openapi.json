@@ -4128,7 +4128,7 @@
       },
       "post": {
         "summary": "Upload an image for a venue or pitch",
-        "description": "Stored privately as a draft. Publishing needs complete rights (ADR-0006).\n\nScope: `media:write`.",
+        "description": "Stored privately as a draft. Publishing needs complete rights (ADR-0006). Limited to 30 uploads per 10 minutes per credential, on top of the general admin limit; a refused upload counts too.\n\nScope: `media:write`.",
         "operationId": "admin.media.upload",
         "tags": [
           "Admin"
