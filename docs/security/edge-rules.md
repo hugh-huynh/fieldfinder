@@ -86,10 +86,11 @@ The same rules can be entered in the dashboard (Project → Firewall → Configu
 ### Check after publishing
 
 ```sh
-for i in $(seq 1 15); do curl -s -o /dev/null -w "%{http_code}\n" "https://<production-host>/sitemap.xml"; done | sort | uniq -c
+HOST=fieldfinder.vercel.app   # replace with the production host (Project → Domains)
+for i in $(seq 1 15); do curl -sS -o /dev/null -w "%{http_code}\n" "https://$HOST/sitemap.xml"; done | sort | uniq -c
 ```
 
-Expect 10 × `200`, then 5 × `429`. The sitemap is the cheapest limited route: two small queries, and no Mapbox call. A minute later it answers `200` again.
+Expect 10 × `200`, then 5 × `429`. `000` means curl never got a response (a wrong host, DNS or the network), not a Firewall result; `-S` prints the reason. 15 × `200` means the rule isn't live (check `vercel firewall diff`). The sitemap is the cheapest limited route: two small queries, and no Mapbox call. A minute later it answers `200` again.
 
 ## Export (committed evidence)
 
