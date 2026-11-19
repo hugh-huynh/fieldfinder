@@ -161,13 +161,36 @@ describe("VenuePage", () => {
     expect(lookup.getVenueDetail).not.toHaveBeenCalled();
   });
 
-  it("titles the page after the venue, and gives nothing away for a missing one", async () => {
+  it("titles the page after the venue with its canonical URL, and gives nothing away for a missing one", async () => {
     lookup.getVenueDetail.mockResolvedValue(detail());
-    expect(await generateMetadata(params("test-reserve"))).toEqual({
+    const metadata = await generateMetadata(params("test-reserve"));
+    expect(metadata).toMatchObject({
       title: "Test Reserve, Testville · FieldFinder",
       description: "Test Reserve in Testville VIC: 2 pitches, facilities and directions.",
+      alternates: { canonical: "/venues/test-reserve" },
+      openGraph: { url: "/venues/test-reserve", siteName: "FieldFinder", locale: "en_AU" },
     });
+    // No photos, no share image.
+    expect(metadata.openGraph).not.toHaveProperty("images");
+
     lookup.getVenueDetail.mockResolvedValue(null);
     expect(await generateMetadata(params("hidden-draft-park"))).toEqual({ title: "Not found · FieldFinder" });
+  });
+
+  it("describes the venue as structured data, from what the page shows", async () => {
+    lookup.getVenueDetail.mockResolvedValue(detail());
+    const { container } = render(await VenuePage(params("test-reserve")));
+    const scripts = container.querySelectorAll('script[type="application/ld+json"]');
+    expect(scripts).toHaveLength(1);
+    const data = JSON.parse(scripts[0]?.textContent ?? "") as Record<string, unknown>;
+    expect(data).toMatchObject({
+      "@type": "SportsActivityLocation",
+      name: "Test Reserve",
+      url: "http://localhost:3000/venues/test-reserve",
+      containsPlace: [
+        { name: "East pitch", url: "http://localhost:3000/venues/test-reserve/pitches/east-pitch" },
+        { name: "West pitch", url: "http://localhost:3000/venues/test-reserve/pitches/west-pitch" },
+      ],
+    });
   });
 });

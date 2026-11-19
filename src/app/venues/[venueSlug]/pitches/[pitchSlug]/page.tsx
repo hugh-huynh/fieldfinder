@@ -9,11 +9,16 @@ import { FacilityList } from "@/features/venues/components/FacilityList";
 import { Gallery } from "@/features/venues/components/Gallery";
 import { VenueLocation } from "@/features/venues/components/VenueLocation";
 import { TrackView } from "@/features/analytics/components/TrackView";
-import { getPitchDetail } from "@/features/venues/detail";
+import { JsonLd } from "@/features/seo/components/JsonLd";
+import { pitchJsonLd } from "@/features/seo/json-ld";
+import { NOT_FOUND_METADATA, pageMetadata } from "@/features/seo/metadata";
+import { getPitchDetail, type PitchDetailResponse } from "@/features/venues/detail";
+import type { MediaDto } from "@/features/venues/dto";
 import { pitchSpecs } from "@/features/venues/pitch-specs";
-import { venuePath } from "@/features/venues/route-target";
+import { pitchPath, venuePath } from "@/features/venues/route-target";
 import { slugSchema } from "@/features/venues/slug";
 import { publicDb } from "@/lib/db/public";
+import { siteUrl } from "@/lib/site";
 
 // `/venues/[venueSlug]/pitches/[pitchSlug]` (spec §3 details, PR 3.11): one published pitch with its
 // specs ("Not confirmed" where unknown), its photos then its venue's, the venue's shared facilities,
@@ -35,30 +40,45 @@ const load = cache(async (venueSlug: string, pitchSlug: string) => {
   return getPitchDetail(publicDb(), venue.data, pitch.data);
 });
 
+/** The pitch's own photos first, then the venue's (never the same image twice). */
+function photosOf({ media, venueMedia }: PitchDetailResponse): MediaDto[] {
+  const pitchIds = new Set(media.map((item) => item.id));
+  return [...media, ...venueMedia.filter((item) => !pitchIds.has(item.id))];
+}
+
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { venueSlug, pitchSlug } = await params;
   const detail = await load(venueSlug, pitchSlug);
-  if (detail === null) return { title: "Not found · FieldFinder" };
+  if (detail === null) return NOT_FOUND_METADATA;
   const { pitch, venue } = detail;
-  return {
+  return pageMetadata({
     title: `${pitch.name} at ${venue.name}, ${venue.suburb} · FieldFinder`,
     description: `${pitch.name} at ${venue.name} in ${venue.suburb} ${venue.state}: pitch specs, facilities and directions.`,
-  };
+    path: pitchPath(venue.slug, pitch.slug),
+    images: photosOf(detail),
+  });
 }
 
 export default async function PitchPage({ params }: { params: Params }) {
   const { venueSlug, pitchSlug } = await params;
   const detail = await load(venueSlug, pitchSlug);
   if (detail === null) notFound();
-  const { pitch, venue, media, venueMedia } = detail;
-  // The pitch's own photos first, then the venue's (never the same image twice).
-  const pitchIds = new Set(media.map((item) => item.id));
-  const photos = [...media, ...venueMedia.filter((item) => !pitchIds.has(item.id))];
+  const { pitch, venue } = detail;
+  const photos = photosOf(detail);
 
   return (
     <>
       <main className="mx-auto max-w-5xl px-4 pt-4 pb-16 lg:px-6">
         <TrackView kind="pitch" venueId={venue.id} pitchId={pitch.id} />
+        <JsonLd
+          data={pitchJsonLd(
+            pitch,
+            venue,
+            photos,
+            { pitch: pitchPath(venue.slug, pitch.slug), venue: venuePath(venue.slug) },
+            (path) => siteUrl(path),
+          )}
+        />
         <BackToResults />
 
         <header className="mt-2">

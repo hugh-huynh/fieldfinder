@@ -4,12 +4,16 @@ import { Suspense } from "react";
 import "./globals.css";
 
 import { Analytics } from "@/features/analytics/components/Analytics";
+import { SITE_NAME } from "@/features/seo/metadata";
 import { AppHeader } from "@/features/search/components/AppHeader";
+import { siteOrigin } from "@/lib/site";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
+// `metadataBase` makes every page's canonical and Open Graph URL absolute (PR 4.2, src/lib/site.ts).
 export const metadata: Metadata = {
-  title: "FieldFinder",
+  metadataBase: new URL(siteOrigin()),
+  title: SITE_NAME,
   description: "Find public soccer fields near you in Melbourne.",
 };
 
