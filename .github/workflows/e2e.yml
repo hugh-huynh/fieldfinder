@@ -21,6 +21,14 @@ jobs:
     name: smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Microsoft's Playwright image already holds the browsers and the system libraries they need, so
+    # this job has no `playwright install --with-deps` step. That step's apt downloads from the runner's
+    # Ubuntu mirror hung for 6–20 min in 7 of 30 runs (2026-11-17 to 2026-11-20). Pinned by digest
+    # (the multi-arch index). Bump the tag and digest together with @playwright/test: the next step
+    # fails if they don't match. The full job stays on the runner, where its screenshot baselines were
+    # made.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,14 +39,16 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Resolve Playwright version
-        id: pw
-        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Check the image has this Playwright version's browsers
+        run: |
+          missing=0
+          for dir in $(pnpm exec playwright install --dry-run chromium webkit | sed -n 's/^ *Install location: *//p'); do
+            if [ ! -d "$dir" ]; then echo "::error::$dir is not in the container image"; missing=1; fi
+          done
+          if [ "$missing" = 1 ]; then
+            echo "::error::@playwright/test $(node -p 'require("@playwright/test/package.json").version') needs a matching mcr.microsoft.com/playwright image: update the smoke job's container in e2e.yml"
+            exit 1
+          fi
       - run: pnpm build
       - run: pnpm e2e:smoke
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
