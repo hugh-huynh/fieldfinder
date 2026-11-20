@@ -19,16 +19,14 @@
 
 ## Vercel Firewall rules (applied by Hugh in ticket 4.3)
 
-Rate-limit rules in Project → Firewall, keyed on client IP, fixed 60 s window. Starting hypotheses:
+The rule set, the commands that apply it and the committed export live in [`docs/security/edge-rules.md`](../../security/edge-rules.md). That file is the source of truth. Revised 2026-11-19 (PR 4.3):
 
-| Rule                    | Path condition                | Limit / 60 s / IP | Action           |
-| ----------------------- | ----------------------------- | ----------------- | ---------------- |
-| Search                  | `/api/venues` (exact)         | 60                | Rate limit (429) |
-| Detail                  | starts with `/api/venues/`    | 120               | Rate limit (429) |
-| Location suggest (2.13) | starts with `/api/locations/` | 30                | Rate limit (429) |
-| Admin                   | starts with `/api/admin/`     | 60                | Rate limit (429) |
+- the server-rendered detail pages (`/venues/…`, 120/60 s) and `/sitemap.xml` (10/60 s) are limited too, because they serve the same data as the JSON API;
+- the managed rulesets are set: Bot Protection logs, then challenges; AI bots are denied;
+- the admin API has a per-operation app limit (uploads: 30 per 10 min per credential);
+- crawlers are never exempted by User-Agent, only by an IP verified with `pnpm crawler:verify` (reverse, then forward, DNS).
 
-Pro allows up to 40 rules per project, keyed on IP or JA4, windows 10 s–10 min. Counters are per edge region, so a client spread across regions can exceed a limit in total; the app-level admin limiter is global.
+The original four rules (search 60, detail API 120, location lookups 30, admin 60 per 60 s per IP) are unchanged. Pro allows up to 40 rules per project, keyed on IP or JA4, windows 10 s–10 min. Counters are per edge region, so a client spread across regions can exceed a limit in total; the app-level admin limiter is global.
 
 ## Consequences
 
