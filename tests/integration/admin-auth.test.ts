@@ -5,7 +5,7 @@ import { adminRoute } from "@/app/api/admin/_lib/admin-route";
 import type { ApiErrorBody } from "@/lib/api/errors";
 import { generateToken, hashToken } from "@/lib/auth/token";
 import { adminDb } from "@/lib/db/admin";
-import { ADMIN_AUTH_FAILURES, ADMIN_CREDENTIAL_REQUESTS } from "@/lib/rate-limit/rules";
+import { ADMIN_AUTH_FAILURES, ADMIN_CREDENTIAL_REQUESTS, ADMIN_MEDIA_UPLOADS } from "@/lib/rate-limit/rules";
 
 import { LOCAL_ADMIN_URL } from "../setup/integration-env";
 
@@ -18,6 +18,18 @@ const operator = postgres(LOCAL_ADMIN_URL, { max: 1, onnotice: () => undefined }
 const GET = adminRoute("admin.venues.read", (_request, { admin }) =>
   Promise.resolve(Response.json({ label: admin.label })),
 );
+
+// Stands in for POST /api/admin/media (scope media:write) to count how often the handler runs; the
+// real upload path is covered by admin-media.test.ts. adminRoute applies the operation's own limit.
+let uploadsHandled = 0;
+const UPLOAD = adminRoute("admin.media.upload", () => {
+  uploadsHandled += 1;
+  return Promise.resolve(Response.json({ ok: true }, { status: 201 }));
+});
+const upload = (token: string) =>
+  UPLOAD(new Request("https://ff.test/api/admin/media", { method: "POST", headers: bearer(token) }), {
+    params: Promise.resolve({}),
+  });
 
 const call = (headers: Record<string, string> = {}, query = "") =>
   GET(new Request(`https://ff.test/api/admin/test${query}`, { headers }), { params: Promise.resolve({}) });
@@ -156,6 +168,39 @@ describe("adminRoute — 429", () => {
     expect(Number(res.headers.get("retry-after"))).toBeGreaterThanOrEqual(1);
     // Other credentials are unaffected.
     expect((await call(bearer(valid))).status).toBe(200);
+  });
+
+  it("limits uploads per credential more tightly, before the handler runs, and only uploads", async () => {
+    const token = await mint("it-uploader", { scopes: ["media:write", "venues:write"] });
+    const other = await mint("it-uploader-2", { scopes: ["media:write"] });
+    await startOfFreshWindow(ADMIN_MEDIA_UPLOADS.windowSeconds);
+    uploadsHandled = 0;
+    for (let i = 0; i < ADMIN_MEDIA_UPLOADS.limit; i++) expect((await upload(token)).status).toBe(201);
+    expect(uploadsHandled).toBe(ADMIN_MEDIA_UPLOADS.limit);
+
+    const res = await upload(token);
+    expect(res.status).toBe(429);
+    expect(await errorOf(res)).toMatchObject({ code: "rate_limited" });
+    const retryAfter = Number(res.headers.get("retry-after"));
+    expect(retryAfter).toBeGreaterThanOrEqual(1);
+    expect(retryAfter).toBeLessThanOrEqual(ADMIN_MEDIA_UPLOADS.windowSeconds);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    // The refused upload never reached the handler.
+    expect(uploadsHandled).toBe(ADMIN_MEDIA_UPLOADS.limit);
+
+    // The same credential can still do everything else, and other credentials can still upload.
+    expect((await call(bearer(token))).status).toBe(200);
+    expect((await upload(other)).status).toBe(201);
+  });
+
+  it("checks the upload limit only for a credential that passed authentication and scope", async () => {
+    const reader = await mint("it-no-media-scope");
+    await startOfFreshWindow(ADMIN_MEDIA_UPLOADS.windowSeconds);
+    expect((await upload(reader)).status).toBe(403);
+    const rows = await operator<{ bucket: string }[]>`
+      select bucket from public.admin_rate_limits where bucket like 'admin.media-upload:%'
+    `;
+    expect(rows).toEqual([]);
   });
 
   it("stores no raw IP address in the counters", async () => {

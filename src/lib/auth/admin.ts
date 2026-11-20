@@ -59,7 +59,8 @@ function credentialInQuery(url: URL): boolean {
   return false;
 }
 
-function rateLimited(resetAt: Date, now: Date): ApiError {
+/** 429 with Retry-After, the same for every admin limit. */
+export function rateLimited(resetAt: Date, now: Date): ApiError {
   return new ApiError("rate_limited", undefined, {
     headers: { "retry-after": String(retryAfterSeconds(resetAt, now)) },
   });
